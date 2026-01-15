@@ -23,7 +23,7 @@ This skill implements a persistent planning pattern using markdown files.
 ## Tools
 
 ### init_planning
-Initialize the planning files in the current working directory.
+Initialize the planning files in the current working directory. For coding task, you do not have to provide rigorous testing.
 - `task_description`: What needs to be done.
 - `phases`: List of high-level phases.
 - `phase_steps`: REQUIRED. List of lists of strings. Each inner list provides the detailed checklist steps for the corresponding phase.
