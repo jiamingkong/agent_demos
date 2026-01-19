@@ -9,7 +9,9 @@ from pathlib import Path
 from dataclasses import dataclass
 from contextlib import AsyncExitStack
 
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
+from openai.types.chat import ChatCompletionMessageParam, ChatCompletionToolParam, ChatCompletionChunk
+from typing import cast
 from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
@@ -26,7 +28,7 @@ class MCPSkillConfig:
     command: str
     args: List[str]
     skill_md_path: Path
-    env: Dict[str, str] = None
+    env: Optional[Dict[str, str]] = None
 
 class MCPSkillWrapper:
     def __init__(self, config: MCPSkillConfig):
@@ -89,7 +91,7 @@ class DeepSeekMCPAgent:
             api_key=api_key,
             base_url="https://api.deepseek.com",
         )
-        self.messages = []
+        self.messages: List[Dict[str, Any]] = []
         self.skills: List[MCPSkillWrapper] = []
         self.exit_stack = AsyncExitStack()
         # Logging setup
@@ -100,6 +102,11 @@ class DeepSeekMCPAgent:
         self.md_file = None
         self.jsonl_handle = None
 
+    CONTEXT_CHAR_LIMIT = 100000
+    CONTEXT_KEEP_LAST_MESSAGES = 10
+    MAX_TOOL_ITERATIONS = 100
+    SUMMARY_MODEL = "deepseek-chat"
+
     def _start_logging(self):
         """Initialize logging for the session"""
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -107,9 +114,11 @@ class DeepSeekMCPAgent:
         self.jsonl_file = self.log_dir / f"{self.session_id}.jsonl"
         self.md_file = self.log_dir / f"{self.session_id}.md"
         
+        assert self.jsonl_file is not None
         self.jsonl_handle = open(self.jsonl_file, "a", encoding="utf-8")
         
         # Initialize MD file
+        assert self.md_file is not None
         with open(self.md_file, "w", encoding="utf-8") as f:
             f.write(f"# Conversation Log: {self.session_id}\n\n")
 
@@ -128,6 +137,7 @@ class DeepSeekMCPAgent:
             self.jsonl_handle.flush()
             
         # Markdown
+        assert self.md_file is not None
         with open(self.md_file, "a", encoding="utf-8") as f:
             if role == "system":
                 f.write(f"## System Prompt\n\n{content}\n\n")
@@ -146,8 +156,13 @@ class DeepSeekMCPAgent:
                 tool_name = kwargs.get("tool_name")
                 f.write(f"### Tool Output ({tool_name})\n\n```\n{content}\n```\n\n")
 
-    def add_server(self, name: str, skill_md_path: Path, command: str, args: List[str], env: Dict[str, str] = None):
+    def add_server(self, name: str, skill_md_path: Path, command: str, args: List[str], env: Optional[Dict[str, str]] = None):
         """Register a server/skill."""
+        # Check for duplicate skill names
+        for existing in self.skills:
+            if existing.config.name == name:
+                console.print(f"[yellow]Skill '{name}' already registered, skipping.[/]")
+                return
         config = MCPSkillConfig(name, command, args, skill_md_path, env)
         wrapper = MCPSkillWrapper(config)
         self.skills.append(wrapper)
@@ -182,7 +197,7 @@ class DeepSeekMCPAgent:
                 }
                  wrapper.tools_cache.append(tool_def)
                  
-        except Exception as e:
+        except (OSError, RuntimeError, ConnectionError) as e:
             console.print(f"[red]Failed to connect to skill {wrapper.config.name}: {e}[/]")
 
     async def list_tools(self) -> List[Dict[str, Any]]:
@@ -231,7 +246,7 @@ class DeepSeekMCPAgent:
                                 if content.type == "text":
                                     text_content.append(content.text)
                             return "\n".join(text_content)
-                         except Exception as e:
+                         except (RuntimeError, KeyError) as e:
                             return f"Error executing {tool_name}: {e}"
         
         return f"Error: Tool '{tool_name}' not found or skill not loaded."
@@ -263,14 +278,17 @@ class DeepSeekMCPAgent:
         reasoning_storage = ""
         full_content = ""
         
+        messages_param: List[ChatCompletionMessageParam] = cast(List[ChatCompletionMessageParam], messages)
+        tools_param: Optional[List[ChatCompletionToolParam]] = cast(Optional[List[ChatCompletionToolParam]], tools) if tools else None
         stream = self.client.chat.completions.create(
             model=model,
-            messages=messages,
-            tools=tools if tools else None,
+            messages=messages_param,
+            tools=tools_param,  # type: ignore
             stream=True
         )
         
-        for chunk in stream:
+        for chunk in stream:  # type: ignore
+            chunk = cast(ChatCompletionChunk, chunk)
             # Handle reasoning
             if hasattr(chunk.choices[0], 'delta') and hasattr(chunk.choices[0].delta, 'reasoning_content'):
                 reasoning = chunk.choices[0].delta.reasoning_content
@@ -286,8 +304,8 @@ class DeepSeekMCPAgent:
 
     async def _condense_context(self):
         """Condense message history if it exceeds limit."""
-        LIMIT = 100000
-        KEEP_LAST = 10 # Keep last 10 messages (approx 5 turns)
+        LIMIT = self.CONTEXT_CHAR_LIMIT
+        KEEP_LAST = self.CONTEXT_KEEP_LAST_MESSAGES  # Keep last N messages (approx 5 turns)
         
         total_chars = sum(len(str(m.get("content", ""))) + len(str(m.get("reasoning_content", ""))) for m in self.messages)
         
@@ -312,8 +330,8 @@ class DeepSeekMCPAgent:
             
             try:
                 # Use a lightweight request for summarization
-                summary = await self.send_llm_request(summary_prompt, model="deepseek-chat") 
-            except Exception as e:
+                summary = await self.send_llm_request(summary_prompt, model=self.SUMMARY_MODEL) 
+            except (OpenAIError, RuntimeError) as e:
                 console.print(f"[red]Condensing failed: {e}[/]")
                 return
 
@@ -376,11 +394,10 @@ Keep reasoning chain-of-thought light and concise, avoid overthinking. Focus on 
                 self._log("user", user_input)
                 
                 tool_iterations = 0
-                MAX_TOOL_ITERATIONS = 100
                 
                 while True:
-                    if tool_iterations >= MAX_TOOL_ITERATIONS:
-                        console.print(f"[red]Max tool iterations ({MAX_TOOL_ITERATIONS}) reached. Stopping execution.[/]")
+                    if tool_iterations >= self.MAX_TOOL_ITERATIONS:
+                        console.print(f"[red]Max tool iterations ({self.MAX_TOOL_ITERATIONS}) reached. Stopping execution.[/]")
                         break
 
                     # Check context length
@@ -492,7 +509,7 @@ Keep reasoning chain-of-thought light and concise, avoid overthinking. Focus on 
                         try:
                             fn_args = json.loads(fn_args_str)
                             result = await self.call_tool(fn_name, fn_args)
-                        except Exception as e:
+                        except (json.JSONDecodeError, RuntimeError, OpenAIError) as e:
                             result = f"Error: {str(e)}"
                             
                         console.print(Panel(result, title=fn_name, border_style="cyan", height=5))
