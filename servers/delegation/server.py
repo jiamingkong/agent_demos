@@ -1,13 +1,14 @@
-from mcp.server.fastmcp import FastMCP
 import asyncio
-import sys
-import os
 import json
 import logging
-import uuid
+import os
 import subprocess
+import sys
+import uuid
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+
+from mcp.server.fastmcp import FastMCP
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -20,6 +21,7 @@ mcp = FastMCP("orchestra", log_level="ERROR")
 # Structure: { task_id: { status: "running"|"completed"|"failed", result: str, process: subprocess.Popen, log_file: Path } }
 TASKS: Dict[str, Dict[str, Any]] = {}
 
+
 @mcp.tool()
 def list_available_skills() -> str:
     """
@@ -30,56 +32,61 @@ def list_available_skills() -> str:
         current_dir = Path(__file__).parent.parent
         # Assuming we are in servers/delegation, we go up to servers/
         servers_dir = current_dir
-        
+
         skills = []
         if servers_dir.exists():
             for item in servers_dir.iterdir():
-                if item.is_dir() and item.name != "delegation" and item.name != "__pycache__":
+                if (
+                    item.is_dir()
+                    and item.name != "delegation"
+                    and item.name != "__pycache__"
+                ):
                     skill_path = item / "SKILL.md"
                     if skill_path.exists():
                         skills.append(f"- {item.name}: {skill_path}")
-        
+
         return "\n".join(skills) if skills else "No skills found."
     except Exception as e:
         return f"Error listing skills: {str(e)}"
+
 
 @mcp.tool()
 async def delegate_task(task_description: str, skills_needed: List[str]) -> str:
     """
     Delegate a task to a new sub-agent process asynchronously.
-    
+
     Args:
         task_description: The detailed prompt/instruction for the sub-agent.
         skills_needed: A list of skill names (directories in servers/) the sub-agent needs.
-    
+
     Returns:
         A task_id to track the progress.
     """
     task_id = f"task_{uuid.uuid4().hex[:8]}"
-    
+
     # 1. Prepare Workspace for Sub-agent
     base_dir = Path(__file__).parent
     runners_dir = base_dir / "runners"
     runners_dir.mkdir(exist_ok=True)
-    
-    # We need to run a standalone agent script. 
-    # Since the main agent.py is designed to be interactive, we need a 'headless' version 
+
+    # We need to run a standalone agent script.
+    # Since the main agent.py is designed to be interactive, we need a 'headless' version
     # or a way to pipe input. For simplicity, we'll create a purpose-built runner script
     # that imports the agent class but runs non-interactively.
-    
+
     # However, reusing the existing `agent.py` might be complex if it's tightly coupled to CLI input.
     # A robust way is to generate a small python script that:
     # 1. Instantiates the agent
     # 2. Add requested servers
     # 3. Sends a single customized system message + user prompt
     # 4. Prints result to stdout/file
-    
+
     # Let's locate the root agent.py
     # self is at /path/to/servers/delegation/server.py
     # agent is at /path/to/agent.py
     root_dir = base_dir.parent.parent
     agent_script_path = root_dir / "agent.py"
-    
+
     # Create a temporary runner script for this task
     runner_script_content = f"""
 import sys
@@ -209,29 +216,30 @@ async def run_task():
 if __name__ == "__main__":
     asyncio.run(run_task())
 """
-    
+
     runner_file = runners_dir / f"runner_{task_id}.py"
     runner_file.write_text(runner_script_content, encoding="utf-8")
-    
+
     # 2. Spawn Process
     # We redirect stdout/stderr to a log file to capture the output
     log_file = runners_dir / f"{task_id}.log"
-    
+
     process = subprocess.Popen(
         [sys.executable, str(runner_file)],
         stdout=open(log_file, "w"),
         stderr=subprocess.STDOUT,
-        cwd=str(root_dir) # Execute from root to find api_key.txt etc
+        cwd=str(root_dir),  # Execute from root to find api_key.txt etc
     )
-    
+
     TASKS[task_id] = {
         "status": "running",
         "process": process,
         "log_file": log_file,
-        "description": task_description[:50] + "..."
+        "description": task_description[:50] + "...",
     }
-    
+
     return f"Task started with ID: {task_id}. Use check_task_status('{task_id}') to monitor."
+
 
 @mcp.tool()
 def check_task_status(task_id: str) -> str:
@@ -240,22 +248,22 @@ def check_task_status(task_id: str) -> str:
     """
     if task_id not in TASKS:
         return "Error: Task ID not found."
-    
+
     task_info = TASKS[task_id]
     process = task_info["process"]
-    
+
     # Check if process is still running
     if process.poll() is None:
         return f"Task {task_id} is still RUNNING."
-    
+
     # Process finished
     task_info["status"] = "completed"
-    
+
     # Read Log
     try:
         with open(task_info["log_file"], "r") as f:
             log_content = f.read()
-            
+
         # Extract Result
         if "TASK_RESULT_START" in log_content:
             _, part2 = log_content.split("TASK_RESULT_START", 1)
@@ -263,9 +271,10 @@ def check_task_status(task_id: str) -> str:
             return f"Task {task_id} COMPLETED.\n\nResult:\n{result.strip()}"
         else:
             return f"Task {task_id} FINISHED but no result extracted. Log tail:\n{log_content[-500:]}"
-            
+
     except Exception as e:
         return f"Task finished but failed to read log: {e}"
+
 
 if __name__ == "__main__":
     mcp.run()
