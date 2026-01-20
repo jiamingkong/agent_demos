@@ -1,11 +1,7 @@
 import json
 
-from servers.regex_skill.server import (
-    regex_extract,
-    regex_match,
-    regex_replace,
-    regex_search,
-)
+from servers.regex_skill.server import (regex_extract, regex_match,
+                                        regex_replace, regex_search)
 
 
 def test_regex_match():

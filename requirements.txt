@@ -21,3 +21,5 @@ redis
 PyJWT
 Jinja2
 dnspython
+-e apscheduler
+websockets

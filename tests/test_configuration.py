@@ -13,7 +13,8 @@ import yaml
 # Add servers to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "servers"))
 
-from configuration.server import get_env_var, read_config, set_env_var, write_config
+from configuration.server import (get_env_var, read_config, set_env_var,
+                                  write_config)
 
 
 def test_read_config_env():

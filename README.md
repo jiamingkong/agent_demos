@@ -156,3 +156,31 @@ pre-commit install
 - 基于 [MCP（模型上下文协议）](https://modelcontextprotocol.io/) 构建
 - 使用 [DeepSeek API](https://platform.deepseek.com/)
 - 受 Claude 技能系统和 Manus 规划启发
+
+
+## New Skills Added
+
+The project now includes three additional skills to extend its capabilities:
+
+1. **Notification Skill** – send messages to Slack, Telegram, Discord, and generic webhooks.
+2. **WebSocket Skill** – connect to WebSocket servers and host simple echo servers (placeholder implementation).
+3. **Schedule Skill** – schedule one‑time and cron‑based tasks using APScheduler (placeholder implementation).
+
+These skills are located in `servers/notification_skill`, `servers/websocket_skill`, and `servers/schedule_skill`. To use them, install the extra dependencies:
+
+```bash
+pip install apscheduler websockets
+```
+
+For usage examples, see `artifacts/new_skills_examples.md`.
+
+## Planned Improvements
+
+Based on the earlier analysis, the following improvements are planned:
+
+- Refactor `chat_loop` to reduce cyclomatic complexity.
+- Add timeout and retry logic for skill server connections.
+- Enhance error handling and resource cleanup.
+- Improve test coverage for existing skills.
+
+Contributions and feedback are welcome!

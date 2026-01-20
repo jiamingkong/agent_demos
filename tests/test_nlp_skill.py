@@ -6,12 +6,8 @@ from pathlib import Path
 # Add servers to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "servers"))
 
-from nlp_skill.server import (
-    analyze_sentiment,
-    detect_language,
-    extract_noun_phrases,
-    tokenize_words,
-)
+from nlp_skill.server import (analyze_sentiment, detect_language,
+                              extract_noun_phrases, tokenize_words)
 
 
 def test_analyze_sentiment():
