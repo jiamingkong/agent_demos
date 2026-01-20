@@ -16,3 +16,8 @@ PyYAML
 PyPDF2
 beautifulsoup4
 pydantic
+boto3
+redis
+PyJWT
+Jinja2
+dnspython
