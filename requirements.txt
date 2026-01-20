@@ -2,3 +2,7 @@ openai
 rich
 mcp
 python-dotenv
+matplotlib
+pandas
+numpy
+requests
