@@ -39,6 +39,7 @@ allowed-tools:
   - test_coverage
   - sort_imports
   - format_with_ruff
+  - format_code
   - list_functions
 ---
 

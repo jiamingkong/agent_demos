@@ -162,6 +162,120 @@ def _analyze_cpp_file(path: Path) -> str:
         return f"Error parsing C++ file: {e}"
 
 
+def _analyze_rust_file(path: Path) -> str:
+    """Extracts high-level structure from a Rust file."""
+    try:
+        content = path.read_text(encoding="utf-8", errors="replace")
+        summary = []
+        import re
+
+        # Function definitions: fn name(...) -> ...
+        fn_pattern = r"fn\s+(\w+)\s*\([^)]*\)(?:\s*->[^{]*)?\s*\{"
+        for match in re.finditer(fn_pattern, content):
+            summary.append(f"Function: {match.group(1)}")
+        # Struct definitions
+        struct_pattern = r"struct\s+(\w+)\s*(?:\{[^}]*\})?"
+        for match in re.finditer(struct_pattern, content):
+            summary.append(f"Struct: {match.group(1)}")
+        # Enum definitions
+        enum_pattern = r"enum\s+(\w+)\s*\{"
+        for match in re.finditer(enum_pattern, content):
+            summary.append(f"Enum: {match.group(1)}")
+        # Trait definitions
+        trait_pattern = r"trait\s+(\w+)\s*\{"
+        for match in re.finditer(trait_pattern, content):
+            summary.append(f"Trait: {match.group(1)}")
+        # Impl blocks
+        impl_pattern = r"impl\s+(\w+)\s*\{"
+        for match in re.finditer(impl_pattern, content):
+            summary.append(f"Impl: {match.group(1)}")
+        # Module declarations
+        mod_pattern = r"mod\s+(\w+)\s*\{"
+        for match in re.finditer(mod_pattern, content):
+            summary.append(f"Module: {match.group(1)}")
+
+        return "\n".join(summary) if summary else "No functions/structs found."
+    except Exception as e:
+        return f"Error parsing Rust file: {e}"
+
+
+def _analyze_go_file(path: Path) -> str:
+    """Extracts high-level structure from a Go file."""
+    try:
+        content = path.read_text(encoding="utf-8", errors="replace")
+        summary = []
+        import re
+
+        # Function definitions: func name(...) ... { or func (receiver) name(...) ... {
+        # Match both regular functions and methods
+        func_pattern = (
+            r"func\s+(?:\(\w+\s+\*?\w+\)\s+)?(\w+)\s*\([^)]*\)(?:\s+[^{]*)?\s*\{"
+        )
+        for match in re.finditer(func_pattern, content):
+            summary.append(f"Function: {match.group(1)}")
+        # Struct definitions
+        struct_pattern = r"type\s+(\w+)\s+struct\s*\{"
+        for match in re.finditer(struct_pattern, content):
+            summary.append(f"Struct: {match.group(1)}")
+        # Interface definitions
+        interface_pattern = r"type\s+(\w+)\s+interface\s*\{"
+        for match in re.finditer(interface_pattern, content):
+            summary.append(f"Interface: {match.group(1)}")
+        # Type aliases (non-struct/interface)
+        type_pattern = r"type\s+(\w+)\s+(?!struct|interface)\w+"
+        for match in re.finditer(type_pattern, content):
+            summary.append(f"Type Alias: {match.group(1)}")
+        # Package declaration
+        package_match = re.search(r"package\s+(\w+)", content)
+        if package_match:
+            summary.append(f"Package: {package_match.group(1)}")
+        # Import block detection (optional)
+        import_match = re.search(r"import\s*\((.*?)\)", content, re.DOTALL)
+        if import_match:
+            # Count imports
+            import_lines = re.findall(r'"(.*?)"', import_match.group(1))
+            summary.append(f"Imports: {len(import_lines)} packages")
+
+        return "\n".join(summary) if summary else "No functions/structs found."
+    except Exception as e:
+        return f"Error parsing Go file: {e}"
+
+
+def _analyze_html_file(path: Path) -> str:
+    """Extracts high-level structure from an HTML file."""
+    try:
+        content = path.read_text(encoding="utf-8", errors="replace")
+        summary = []
+        import re
+
+        # Extract tag names (simplified)
+        # Match opening tags like <div>, <script>, etc.
+        tag_pattern = r"<(\w+)(?:\s+[^>]*)?>"
+        tags = re.findall(tag_pattern, content)
+        # Count unique tags
+        from collections import Counter
+
+        tag_counts = Counter(tags)
+        for tag, count in tag_counts.most_common():
+            summary.append(f"Tag: {tag} (appears {count} times)")
+        # Extract script and style blocks
+        if "<script" in content:
+            summary.append("Contains JavaScript")
+        if "<style" in content:
+            summary.append("Contains CSS")
+        # Detect common meta tags
+        meta_pattern = r"<meta\s+[^>]*>"
+        if re.search(meta_pattern, content):
+            summary.append("Contains meta tags")
+        # Detect title
+        title_match = re.search(r"<title>(.*?)</title>", content)
+        if title_match:
+            summary.append(f"Title: {title_match.group(1)}")
+        return "\n".join(summary) if summary else "No significant HTML elements found."
+    except Exception as e:
+        return f"Error parsing HTML file: {e}"
+
+
 def _search_files_python(
     folder_path: str,
     pattern: str,
@@ -270,7 +384,15 @@ def investigate_and_save_report(folder_path: str) -> str:
     typescript_analyses = []
     java_analyses = []
     cpp_analyses = []
+    rust_analyses = []
+    go_analyses = []
+    html_analyses = []
     other_files_summary = []
+
+    # Statistics
+    file_count = 0
+    line_count = 0
+    language_counts: Dict[str, int] = {}
 
     for root, dirs, files in os.walk(str(p)):
         dirs[:] = [d for d in dirs if d not in IGNORE_DIRS]
@@ -291,6 +413,12 @@ def investigate_and_save_report(folder_path: str) -> str:
             if f in IGNORE_FILES:
                 continue
             structure_lines.append(f"{subindent}{f}")
+
+            # Update statistics
+            file_count += 1
+            ext = f.split(".")[-1].lower() if "." in f else ""
+            if ext:
+                language_counts[ext] = language_counts.get(ext, 0) + 1
 
             file_path = Path(root) / f
             file_rel_path = prefix + f
@@ -341,6 +469,30 @@ def investigate_and_save_report(folder_path: str) -> str:
                         f"- **{file_rel_path}**\n```text\n{analysis}\n```"
                     )
 
+            # Analyze Rust Files
+            elif f.endswith(".rs"):
+                analysis = _analyze_rust_file(file_path)
+                if analysis:
+                    rust_analyses.append(
+                        f"- **{file_rel_path}**\n```text\n{analysis}\n```"
+                    )
+
+            # Analyze Go Files
+            elif f.endswith(".go"):
+                analysis = _analyze_go_file(file_path)
+                if analysis:
+                    go_analyses.append(
+                        f"- **{file_rel_path}**\n```text\n{analysis}\n```"
+                    )
+
+            # Analyze HTML Files
+            elif f.endswith(".html") or f.endswith(".htm"):
+                analysis = _analyze_html_file(file_path)
+                if analysis:
+                    html_analyses.append(
+                        f"- **{file_rel_path}**\n```text\n{analysis}\n```"
+                    )
+
             # Summarize Config/Readmes (Keep it short)
             elif f.upper().startswith("README") or f in [
                 "requirements.txt",
@@ -369,7 +521,16 @@ def investigate_and_save_report(folder_path: str) -> str:
     report_content.extend(structure_lines)
     report_content.append("```")
     report_content.append("")
-    report_content.append("## 2. Python Code High-Level Overview")
+    # Project Statistics
+    report_content.append("## 2. Project Statistics")
+    report_content.append(f"- Total files: {file_count}")
+    # Summarize language counts
+    if language_counts:
+        report_content.append("- Files by extension:")
+        for ext, count in sorted(language_counts.items()):
+            report_content.append(f"  - .{ext}: {count}")
+    report_content.append("")
+    report_content.append("## 3. Python Code High-Level Overview")
     report_content.append(
         "Generated by parsing AST. Shows classes, methods, and docstrings."
     )
@@ -401,7 +562,14 @@ def investigate_and_save_report(folder_path: str) -> str:
         )
         report_content.extend(cpp_analyses)
         report_content.append("")
-    report_content.append("## 7. Configuration & Documentation (Preview)")
+    if go_analyses:
+        report_content.append("## 7. Go Code Overview")
+        report_content.append(
+            "Extracted using regex. Shows functions, structs, interfaces, packages."
+        )
+        report_content.extend(go_analyses)
+        report_content.append("")
+    report_content.append("## 8. Configuration & Documentation (Preview)")
     report_content.extend(other_files_summary)
 
     final_report = "\n".join(report_content)
@@ -2213,6 +2381,80 @@ def format_with_ruff(file_path: str) -> str:
 
 
 @mcp.tool()
+def format_code(file_path: str, formatter: str = "", options: str = "") -> str:
+    """
+    Format a code file using an appropriate formatter based on file extension.
+
+    Supported languages:
+      - Python: uses black (default) or ruff (if formatter='ruff')
+      - Rust: uses rustfmt
+      - HTML/JavaScript/TypeScript: uses prettier (must be installed)
+      - Others: attempts to use prettier if available.
+
+    Args:
+        file_path: Absolute path to the file.
+        formatter: Optional specific formatter (black, ruff, rustfmt, prettier).
+                   If empty, auto‑detect based on extension.
+        options: Additional command‑line options passed to the formatter.
+
+    Returns:
+        Success message or error description.
+    """
+    import subprocess
+    from pathlib import Path
+
+    p = Path(file_path).expanduser().resolve()
+    if not p.exists():
+        return f"Error: File not found: {file_path}"
+    if not p.is_file():
+        return f"Error: Path is not a file: {file_path}"
+
+    suffix = p.suffix.lower()
+    # Determine formatter
+    if formatter:
+        fmt = formatter
+    else:
+        # Auto‑detect
+        if suffix == ".py":
+            fmt = "black"
+        elif suffix == ".rs":
+            fmt = "rustfmt"
+        elif suffix in (".html", ".htm", ".js", ".ts", ".tsx", ".json", ".css"):
+            fmt = "prettier"
+        else:
+            fmt = "prettier"  # fallback
+
+    # Build command
+    if fmt == "black":
+        cmd = ["black", str(p)]
+    elif fmt == "ruff":
+        cmd = ["ruff", "format", str(p)]
+    elif fmt == "rustfmt":
+        cmd = ["rustfmt", str(p)]
+    elif fmt == "prettier":
+        cmd = ["prettier", "--write", str(p)]
+    else:
+        return f"Error: Unknown formatter '{fmt}'."
+
+    if options:
+        # Split options string into list (simple splitting by spaces, no quoting)
+        cmd.extend(options.split())
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode == 0:
+            return f"Successfully formatted {p.name} using {fmt}."
+        else:
+            return f"Formatter {fmt} failed:\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}"
+    except subprocess.TimeoutExpired:
+        return f"Error: {fmt} timed out."
+    except FileNotFoundError:
+        return f"Error: {fmt} not installed. Please install it and ensure it's in PATH."
+    except Exception as e:
+        return f"Error running {fmt}: {str(e)}"
+
+
+@mcp.tool()
 def list_functions(file_path: str) -> str:
     """
     List functions, classes, and other top-level definitions in a file.
@@ -2243,8 +2485,12 @@ def list_functions(file_path: str) -> str:
         analysis = _analyze_java_file(p)
     elif suffix in (".cpp", ".hpp", ".h", ".cc", ".cxx"):
         analysis = _analyze_cpp_file(p)
+    elif suffix == ".rs":
+        analysis = _analyze_rust_file(p)
+    elif suffix == ".go":
+        analysis = _analyze_go_file(p)
     else:
-        return f"Error: Unsupported file type. Supported: .py, .js, .ts, .tsx, .java, .cpp, .hpp, .h, .cc, .cxx"
+        return f"Error: Unsupported file type. Supported: .py, .js, .ts, .tsx, .java, .cpp, .hpp, .h, .cc, .cxx, .rs, .go"
 
     if not analysis or analysis.startswith("Error"):
         return f"No definitions found or error analyzing file: {analysis}"
