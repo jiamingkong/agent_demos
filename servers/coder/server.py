@@ -857,5 +857,128 @@ def lint_with_pylint(file_path: str) -> str:
         return f"Error running pylint: {str(e)}"
 
 
+@mcp.tool()
+def ai_suggest_code(prompt: str, code: str = "", language: str = "python") -> str:
+    """
+    Generate code suggestions using OpenAI's API.
+
+    Args:
+        prompt: Natural language description of the desired code or improvement.
+        code: Optional existing code snippet to be improved or extended.
+        language: Programming language (default: "python").
+
+    Returns:
+        Suggested code or explanation.
+    """
+    try:
+        import openai
+
+        # Prepare messages
+        messages = []
+        if code:
+            messages.append(
+                {
+                    "role": "user",
+                    "content": f"Here is my {language} code:\n```{language}\n{code}\n```\n{prompt}",
+                }
+            )
+        else:
+            messages.append({"role": "user", "content": prompt})
+
+        # Call OpenAI API
+        response = openai.chat.completions.create(
+            model="gpt-4-turbo-preview",
+            messages=messages,
+            temperature=0.7,
+            max_tokens=1000,
+        )
+        suggestion = response.choices[0].message.content
+        return f"## AI Suggestion\n\n{suggestion}"
+    except Exception as e:
+        return f"Error generating AI suggestion: {str(e)}"
+
+
+@mcp.tool()
+def analyze_dependencies(project_path: str = ".") -> str:
+    """
+    Analyze Python dependencies in a project.
+
+    Args:
+        project_path: Path to the project root (default current directory).
+
+    Returns:
+        Markdown report of dependencies and their status.
+    """
+    import subprocess
+    from pathlib import Path
+
+    p = Path(project_path).expanduser().resolve()
+    if not p.exists():
+        return f"Error: Path not found: {project_path}"
+
+    # Look for dependency files
+    requirements_file = p / "requirements.txt"
+    pyproject_file = p / "pyproject.toml"
+    pipfile = p / "Pipfile"
+    has_deps = False
+    report = []
+
+    # Read requirements.txt
+    if requirements_file.exists():
+        has_deps = True
+        content = requirements_file.read_text(encoding="utf-8", errors="replace")
+        lines = [line.strip() for line in content.splitlines() if line.strip()]
+        report.append("### requirements.txt")
+        for line in lines:
+            report.append(f"- `{line}`")
+
+    # Read pyproject.toml (simple extraction)
+    if pyproject_file.exists():
+        has_deps = True
+        import tomli
+
+        try:
+            data = tomli.loads(pyproject_file.read_text(encoding="utf-8"))
+            deps = data.get("tool", {}).get("poetry", {}).get("dependencies", {})
+            if deps:
+                report.append("### pyproject.toml (Poetry dependencies)")
+                for name, spec in deps.items():
+                    if isinstance(spec, str):
+                        report.append(f"- `{name} = {spec}`")
+                    else:
+                        report.append(f"- `{name} = {spec.get('version', '?')}`")
+        except Exception as e:
+            report.append(f"Note: Could not parse pyproject.toml: {e}")
+
+    # Check outdated packages (optional)
+    try:
+        result = subprocess.run(
+            ["pip", "list", "--outdated", "--format=json"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            import json
+
+            outdated = json.loads(result.stdout)
+            if outdated:
+                report.append("### Outdated Packages")
+                for pkg in outdated:
+                    report.append(
+                        f"- `{pkg['name']}`: {pkg['version']} -> {pkg['latest_version']}"
+                    )
+            else:
+                report.append("### All packages are up‑to‑date.")
+        else:
+            report.append("### Unable to check outdated packages.")
+    except Exception as e:
+        report.append(f"### Outdated check failed: {e}")
+
+    if not has_deps:
+        return "No dependency files found (requirements.txt, pyproject.toml, Pipfile)."
+
+    return "\n".join(report)
+
+
 if __name__ == "__main__":
     mcp.run()

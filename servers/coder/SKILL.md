@@ -21,6 +21,8 @@ allowed-tools:
   - git_log
   - type_check_with_mypy
   - lint_with_pylint
+  - ai_suggest_code
+  - analyze_dependencies
 ---
 
 # Coder Skill
@@ -125,6 +127,16 @@ Run mypy type checking on a Python file.
 ### lint_with_pylint
 Run pylint on a Python file.
 - `file_path`: Path to the Python file.
+
+### ai_suggest_code
+Generate code suggestions using OpenAI's API.
+- `prompt`: Natural language description of the desired code or improvement.
+- `code`: Optional existing code snippet to be improved or extended.
+- `language`: Programming language (default: "python").
+
+### analyze_dependencies
+Analyze Python dependencies in a project.
+- `project_path`: Path to the project root (default current directory).
 
 ## Usage Strategy: Reliable Code Editing
 
