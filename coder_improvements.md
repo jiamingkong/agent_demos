@@ -58,6 +58,33 @@ Example:
 generate_unit_tests("/path/to/file.py", "my_function")
 ```
 
+## New Improvements (2026-01-21)
+
+1. **Added `explain_code` tool**
+   - Uses OpenAI to generate natural language explanation of a code block or file.
+   - Parameters: `file_path` (optional), `code` (optional), `language` (default python).
+   - Returns markdown explanation.
+
+2. **Added `translate_code` tool**
+   - Translates code between programming languages using AI.
+   - Parameters: `source_code`, `source_language`, `target_language`, `file_path`.
+   - Returns translated code with syntax highlighting.
+
+3. **Added `suggest_dependency_upgrades` tool**
+   - Checks for outdated Python dependencies in requirements.txt or pyproject.toml.
+   - Uses pip index or PyPI API to fetch latest versions.
+   - Returns markdown table with upgrade recommendations.
+
+4. **Added `detect_duplicate_code` tool**
+   - Detects duplicate code blocks within Python files in a directory.
+   - Parameters: `folder_path`, `file_pattern` (default "*.py"), `min_lines` (default 5).
+   - Returns markdown report of duplicate blocks.
+
+5. **Added `generate_api_docs` tool**
+   - Generates API documentation for a Python file.
+   - Parameters: `file_path`.
+   - Returns markdown documentation.
+
 ## Notes
 
 The improvements are already applied to the source code. The skill needs to be reloaded for the changes to take effect (or restart the agent).

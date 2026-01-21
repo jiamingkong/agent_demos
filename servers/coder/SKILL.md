@@ -43,7 +43,12 @@ allowed-tools:
   - format_code
   - extract_function
   - inline_variable
+  - explain_code
+  - translate_code
+  - suggest_dependency_upgrades
   - list_functions
+  - detect_duplicate_code
+  - generate_api_docs
 ---
 
 # Coder Skill
@@ -254,6 +259,39 @@ Returns success message or error description.
 List functions, classes, and other top-level definitions in a file. Supports Python, JavaScript, TypeScript, Java, and C++ files.
 - `file_path`: Absolute path to the file.
 Returns a markdown list of definitions or error message.
+
+### explain_code
+Generate a natural language explanation of the given code using AI.
+- `file_path`: Optional path to a code file. If provided, code is read from file.
+- `code`: Optional code string. If file_path is not provided, this code is used.
+- `language`: Programming language of the code (default "python").
+Returns explanation as a markdown string.
+
+### translate_code
+Translate code from one programming language to another using AI.
+- `source_code`: Source code string (optional if file_path provided).
+- `source_language`: Language of the source code (optional, can be auto-detected).
+- `target_language`: Target programming language (required).
+- `file_path`: Optional path to a source code file. If provided, source_code is read from file.
+Returns translated code as a string.
+
+### suggest_dependency_upgrades
+Check for outdated Python dependencies and suggest upgrades.
+- `project_path`: Path to the project root directory (default current directory).
+Returns markdown table with current version, latest version, and upgrade recommendation.
+
+### detect_duplicate_code
+Detect duplicate code blocks within Python files in a directory.
+- `folder_path`: Directory to scan.
+- `file_pattern`: File pattern to match (default "*.py").
+- `min_lines`: Minimum number of lines in a block to consider (default 5).
+Returns markdown report of duplicate blocks.
+
+### generate_api_docs
+Generate API documentation for a Python file.
+- `file_path`: Absolute path to the Python file.
+Returns markdown documentation.
+
 ## Usage Strategy: Reliable Code Editing
 
 To edit files efficiently and correctly using `apply_edit_blocks`, follow this distinct workflow. This method prevents "SEARCH block not found" errors by ensuring you have the exact text.

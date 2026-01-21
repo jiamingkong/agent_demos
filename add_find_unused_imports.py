@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-import sys
 import re
+import sys
 
-with open('servers/coder/server.py', 'r') as f:
+with open("servers/coder/server.py", "r") as f:
     content = f.read()
 
 # Find the position of generate_unit_tests function
 # We'll insert before the @mcp.tool() decorator of generate_unit_tests
-pattern = r'(@mcp\.tool\(\)\s*\ndef generate_unit_tests)'
+pattern = r"(@mcp\.tool\(\)\s*\ndef generate_unit_tests)"
 match = re.search(pattern, content)
 if not match:
     sys.stderr.write("Could not find generate_unit_tests function\n")
@@ -87,7 +87,7 @@ def find_unused_imports(file_path: str) -> str:
 # Insert new function before the matched pattern
 new_content = content[:pos] + new_func + content[pos:]
 
-with open('servers/coder/server.py', 'w') as f:
+with open("servers/coder/server.py", "w") as f:
     f.write(new_content)
 
 print("Successfully added find_unused_imports function.")

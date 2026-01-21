@@ -2,7 +2,7 @@
 import re
 import sys
 
-with open('servers/coder/server.py', 'r') as f:
+with open("servers/coder/server.py", "r") as f:
     content = f.read()
 
 # Pattern to match the entire search_and_replace function (including decorator)
@@ -100,7 +100,7 @@ if new_content == content:
     sys.stderr.write("Replacement failed: old function not found.\n")
     sys.exit(1)
 
-with open('servers/coder/server.py', 'w') as f:
+with open("servers/coder/server.py", "w") as f:
     f.write(new_content)
 
 print("Successfully updated search_and_replace function.")

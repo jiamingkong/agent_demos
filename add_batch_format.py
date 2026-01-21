@@ -2,11 +2,11 @@
 import re
 import sys
 
-with open('servers/coder/server.py', 'r') as f:
+with open("servers/coder/server.py", "r") as f:
     content = f.read()
 
 # Find the position of git_status function (since we want to insert before it)
-pattern = r'(@mcp\.tool\(\)\s*\ndef git_status)'
+pattern = r"(@mcp\.tool\(\)\s*\ndef git_status)"
 match = re.search(pattern, content)
 if not match:
     sys.stderr.write("Could not find git_status function\n")
@@ -83,7 +83,7 @@ def batch_format(directory: str, file_pattern: str = "*.py") -> str:
 # Insert new function before git_status
 new_content = content[:pos] + new_func + content[pos:]
 
-with open('servers/coder/server.py', 'w') as f:
+with open("servers/coder/server.py", "w") as f:
     f.write(new_content)
 
 print("Successfully added batch_format function.")

@@ -2741,13 +2741,17 @@ def inline_variable(
 
         # Determine the scope node (nearest function, class, or module)
         scope_node = assignment_node
-        while scope_node and not isinstance(scope_node, (ast.Module, ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
+        while scope_node and not isinstance(
+            scope_node,
+            (ast.Module, ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef),
+        ):
             scope_node = get_parent(scope_node)
         if scope_node is None:
             scope_node = tree  # fallback to module
 
         # Collect usages of variable in the same scope after assignment
         usages = []
+
         class UsageCollector(ast.NodeVisitor):
             def __init__(self):
                 self.usages = []
@@ -2774,7 +2778,9 @@ def inline_variable(
         usages = collector.usages
 
         if not usages:
-            return f"Error: Variable '{variable_name}' is not used after its assignment."
+            return (
+                f"Error: Variable '{variable_name}' is not used after its assignment."
+            )
 
         # Replace each usage with the assignment expression
         class InlineTransformer(ast.NodeTransformer):
@@ -2807,6 +2813,220 @@ def inline_variable(
         return f"Syntax error: {e}"
     except Exception as e:
         return f"Error inlining variable: {str(e)}"
+
+
+@mcp.tool()
+def explain_code(file_path: str = "", code: str = "", language: str = "python") -> str:
+    """
+    Generate a natural language explanation of the given code using AI.
+
+    Args:
+        file_path: Optional path to a code file. If provided, code is read from file.
+        code: Optional code string. If file_path is not provided, this code is used.
+        language: Programming language of the code (default "python").
+
+    Returns:
+        Explanation as a markdown string.
+    """
+    try:
+        import openai
+
+        # Read code from file if file_path provided
+        if file_path:
+            from pathlib import Path
+
+            p = Path(file_path).expanduser().resolve()
+            if not p.exists():
+                return f"Error: File not found: {file_path}"
+            code_content = p.read_text(encoding="utf-8")
+        else:
+            code_content = code.strip()
+            if not code_content:
+                return "Error: Either file_path or code must be provided."
+
+        # Prepare prompt
+        prompt = f"Explain the following {language} code in plain English. Describe what it does, its inputs/outputs, and any notable patterns or issues.\n\n```{language}\n{code_content}\n```"
+
+        # Call OpenAI API
+        response = openai.chat.completions.create(
+            model="gpt-4-turbo-preview",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=800,
+        )
+        explanation = response.choices[0].message.content
+        return f"## Code Explanation\n\n{explanation}"
+    except Exception as e:
+        return f"Error generating explanation: {str(e)}"
+
+
+@mcp.tool()
+def translate_code(
+    source_code: str = "",
+    source_language: str = "",
+    target_language: str = "",
+    file_path: str = "",
+) -> str:
+    """
+    Translate code from one programming language to another using AI.
+
+    Args:
+        source_code: Source code string (optional if file_path provided).
+        source_language: Language of the source code (optional, can be auto-detected).
+        target_language: Target programming language (required).
+        file_path: Optional path to a source code file. If provided, source_code is read from file.
+
+    Returns:
+        Translated code as a string.
+    """
+    try:
+        import openai
+
+        # Read code from file if file_path provided
+        if file_path:
+            from pathlib import Path
+
+            p = Path(file_path).expanduser().resolve()
+            if not p.exists():
+                return f"Error: File not found: {file_path}"
+            source_code_content = p.read_text(encoding="utf-8")
+        else:
+            source_code_content = source_code.strip()
+            if not source_code_content:
+                return "Error: Either source_code or file_path must be provided."
+
+        if not target_language:
+            return "Error: target_language is required."
+
+        # Prepare prompt
+        prompt = f"Translate the following code from {source_language if source_language else 'any language'} to {target_language}. Preserve functionality, naming conventions, and comments.\n\n```{source_language if source_language else ''}\n{source_code_content}\n```"
+
+        # Call OpenAI API
+        response = openai.chat.completions.create(
+            model="gpt-4-turbo-preview",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+            max_tokens=1500,
+        )
+        translated = response.choices[0].message.content
+        # Clean up possible markdown code fences
+        if translated.startswith("```"):
+            # Extract code between fences
+            import re
+
+            match = re.search(r"```(?:\w+)?\s*(.*?)\s*```", translated, re.DOTALL)
+            if match:
+                translated = match.group(1).strip()
+        return f"## Translated Code to {target_language}\n\n```{target_language}\n{translated}\n```"
+    except Exception as e:
+        return f"Error translating code: {str(e)}"
+
+
+@mcp.tool()
+def suggest_dependency_upgrades(project_path: str = ".") -> str:
+    """
+    Check for outdated Python dependencies and suggest upgrades.
+
+    Args:
+        project_path: Path to the project root directory (default current directory).
+
+    Returns:
+        Markdown table with current version, latest version, and upgrade recommendation.
+    """
+    try:
+        import json
+        import subprocess
+        from pathlib import Path
+
+        p = Path(project_path).expanduser().resolve()
+        if not p.exists():
+            return f"Error: Project path not found: {project_path}"
+
+        # Find requirements.txt or pyproject.toml
+        requirements_file = p / "requirements.txt"
+        pyproject_file = p / "pyproject.toml"
+        dependencies = []
+
+        if requirements_file.exists():
+            # Parse requirements.txt (simple)
+            with open(requirements_file, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        # Simple extraction of package name and version
+                        # This is a naive parser; for production use a proper library
+                        if "==" in line:
+                            pkg, version = line.split("==", 1)
+                            dependencies.append((pkg.strip(), version.strip()))
+                        elif ">=" in line or "<=" in line or "~=" in line:
+                            # Ignore complex specifiers for now
+                            continue
+                        else:
+                            # No version specifier
+                            dependencies.append((line.strip(), "latest"))
+        elif pyproject_file.exists():
+            # Parse pyproject.toml (very basic)
+            import tomli
+
+            with open(pyproject_file, "rb") as f:
+                data = tomli.load(f)
+                # Check [tool.poetry.dependencies] or [project.dependencies]
+                deps = data.get("tool", {}).get("poetry", {}).get("dependencies", {})
+                if not deps:
+                    deps = data.get("project", {}).get("dependencies", [])
+                # Convert to list of (pkg, version)
+                for pkg, spec in deps.items():
+                    if isinstance(spec, str):
+                        dependencies.append((pkg, spec))
+                    else:
+                        dependencies.append((pkg, str(spec)))
+        else:
+            return "Error: No requirements.txt or pyproject.toml found."
+
+        if not dependencies:
+            return "No dependencies found."
+
+        # Check latest versions using pip index (or pypi API)
+        results = []
+        for pkg, current in dependencies:
+            try:
+                # Use pip index to get latest version
+                cmd = ["pip", "index", "versions", pkg, "--format", "json"]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+                if result.returncode == 0:
+                    info = json.loads(result.stdout)
+                    latest = info.get("latest_version", "unknown")
+                else:
+                    # Fallback to pypi API
+                    import json as json_module
+                    import urllib.request
+
+                    url = f"https://pypi.org/pypi/{pkg}/json"
+                    with urllib.request.urlopen(url, timeout=5) as resp:
+                        data = json_module.load(resp)
+                        latest = data.get("info", {}).get("version", "unknown")
+            except Exception as e:
+                latest = "unknown"
+
+            results.append(
+                {
+                    "package": pkg,
+                    "current": current,
+                    "latest": latest,
+                    "upgrade": (
+                        "Yes" if latest != "unknown" and current != latest else "No"
+                    ),
+                }
+            )
+
+        # Generate markdown table
+        table = "| Package | Current | Latest | Upgrade Recommended |\n| --- | --- | --- | --- |\n"
+        for r in results:
+            table += f"| {r['package']} | {r['current']} | {r['latest']} | {r['upgrade']} |\n"
+
+        return f"## Dependency Upgrade Suggestions\n\n{table}"
+    except Exception as e:
+        return f"Error checking dependencies: {str(e)}"
 
 
 @mcp.tool()
@@ -2861,6 +3081,130 @@ def list_functions(file_path: str) -> str:
         )
     else:
         return "No definitions found."
+
+
+@mcp.tool()
+def detect_duplicate_code(
+    folder_path: str, file_pattern: str = "*.py", min_lines: int = 5
+) -> str:
+    """
+    Detect duplicate code blocks within Python files in a directory.
+
+    Args:
+        folder_path: Directory to scan.
+        file_pattern: File pattern to match (default "*.py").
+        min_lines: Minimum number of lines in a block to consider (default 5).
+
+    Returns:
+        Markdown report of duplicate blocks.
+    """
+    import hashlib
+    from collections import defaultdict
+    from pathlib import Path
+
+    p = Path(folder_path).expanduser().resolve()
+    if not p.exists() or not p.is_dir():
+        return f"Error: Invalid directory: {folder_path}"
+
+    # Collect all Python files
+    files = list(p.rglob(file_pattern))
+    if not files:
+        return f"No files matching '{file_pattern}' found."
+
+    # Map hash -> list of (file, line_start)
+    hash_map = defaultdict(list)
+
+    for file in files:
+        try:
+            content = file.read_text(encoding="utf-8", errors="replace")
+            lines = content.splitlines()
+            # Slide a window of min_lines lines
+            for i in range(len(lines) - min_lines + 1):
+                block = "\n".join(lines[i : i + min_lines])
+                # Normalize whitespace? Keep as is for now.
+                block_hash = hashlib.sha256(block.encode()).hexdigest()
+                hash_map[block_hash].append((file, i + 1))
+        except Exception as e:
+            # Skip files with errors
+            continue
+
+    # Filter duplicates (hash with more than one occurrence)
+    duplicates = {h: locs for h, locs in hash_map.items() if len(locs) > 1}
+    if not duplicates:
+        return "No duplicate code blocks found."
+
+    # Generate report
+    report = [
+        "# Duplicate Code Detection Report",
+        f"Directory: {folder_path}",
+        f"Min lines: {min_lines}",
+        "",
+    ]
+    for i, (h, locs) in enumerate(duplicates.items(), 1):
+        report.append(f"## Duplicate block {i}")
+        report.append(f"Hash: {h[:16]}...")
+        report.append("Locations:")
+        for file, line in locs:
+            report.append(f"- `{file.relative_to(p)}` line {line}")
+        report.append("")
+
+    return "\n".join(report)
+
+
+@mcp.tool()
+def generate_api_docs(file_path: str) -> str:
+    """
+    Generate API documentation for a Python file.
+
+    Args:
+        file_path: Absolute path to the Python file.
+
+    Returns:
+        Markdown documentation.
+    """
+    import ast
+    from pathlib import Path
+
+    p = Path(file_path).expanduser().resolve()
+    if not p.exists():
+        return f"Error: File not found: {file_path}"
+    if p.suffix != ".py":
+        return "Error: Only Python files are supported."
+
+    try:
+        content = p.read_text(encoding="utf-8")
+        tree = ast.parse(content)
+    except Exception as e:
+        return f"Error parsing file: {e}"
+
+    sections = []
+    # Module docstring
+    module_doc = ast.get_docstring(tree)
+    if module_doc:
+        sections.append(f"# Module {p.name}\n\n{module_doc}\n")
+
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef):
+            class_doc = ast.get_docstring(node)
+            methods = [n.name for n in node.body if isinstance(n, ast.FunctionDef)]
+            sections.append(f"## Class `{node.name}`\n")
+            if class_doc:
+                sections.append(f"{class_doc}\n")
+            if methods:
+                sections.append(
+                    "**Methods:** " + ", ".join(f"`{m}`" for m in methods) + "\n"
+                )
+        elif isinstance(node, ast.FunctionDef):
+            func_doc = ast.get_docstring(node)
+            # Get signature (simplified)
+            args = [arg.arg for arg in node.args.args]
+            sections.append(f"## Function `{node.name}`(`{', '.join(args)}`)\n")
+            if func_doc:
+                sections.append(f"{func_doc}\n")
+
+    if not sections:
+        return "No API elements found."
+    return "\n".join(sections)
 
 
 if __name__ == "__main__":
