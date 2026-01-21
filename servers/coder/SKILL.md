@@ -31,6 +31,9 @@ allowed-tools:
   - find_unused_imports
   - generate_unit_tests
   - code_stats
+  - code_review
+  - security_scan
+  - test_coverage
 ---
 
 # Coder Skill
@@ -191,6 +194,21 @@ Search and replace across multiple files using grep and sed, with optional dry-r
 - `dry_run`: If True, only show which files would be changed.
 - `keep_backup`: If True, keep backup files (.bak) after replacement.
 - `max_files`: Maximum number of files to process (optional).
+
+### code_review
+Run static analysis tools (pylint, flake8, bandit) on a Python file or directory.
+- `path`: Absolute path to a Python file or directory.
+Returns a summary report of issues found.
+
+### security_scan
+Run security scanning with bandit on a Python file or directory.
+- `path`: Absolute path to a Python file or directory.
+Returns security issues found by bandit.
+
+### test_coverage
+Run test coverage analysis using coverage.py and pytest.
+- `path`: Absolute path to the project root directory.
+Returns coverage report summary.
 ## Usage Strategy: Reliable Code Editing
 
 To edit files efficiently and correctly using `apply_edit_blocks`, follow this distinct workflow. This method prevents "SEARCH block not found" errors by ensuring you have the exact text.

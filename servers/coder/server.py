@@ -747,9 +747,9 @@ def batch_format(directory: str, file_pattern: str = "*.py") -> str:
         Summary of formatted files.
     """
     try:
+        import fnmatch
         import subprocess
         from pathlib import Path
-        import fnmatch
 
         p = Path(directory).expanduser().resolve()
         if not p.exists():
@@ -768,10 +768,10 @@ def batch_format(directory: str, file_pattern: str = "*.py") -> str:
 
         formatted_count = 0
         errors = []
-        for file in files:
+        for f in files:
             try:
                 result = subprocess.run(
-                    ["black", file],
+                    ["black", f],
                     capture_output=True,
                     text=True,
                     timeout=30,
@@ -779,11 +779,11 @@ def batch_format(directory: str, file_pattern: str = "*.py") -> str:
                 if result.returncode == 0:
                     formatted_count += 1
                 else:
-                    errors.append(f"{file}: {result.stderr}")
+                    errors.append(f"{f}: {result.stderr}")
             except subprocess.TimeoutExpired:
-                errors.append(f"{file}: Black formatting timed out.")
+                errors.append(f"{f}: Black formatting timed out.")
             except Exception as e:
-                errors.append(f"{file}: {e}")
+                errors.append(f"{f}: {e}")
 
         summary_lines = [f"Formatted {formatted_count} out of {len(files)} files."]
         if errors:
@@ -795,6 +795,7 @@ def batch_format(directory: str, file_pattern: str = "*.py") -> str:
         return "\n".join(summary_lines)
     except Exception as e:
         return f"Error in batch_format: {str(e)}"
+
 
 @mcp.tool()
 def git_status(repo_path: str = ".") -> str:
@@ -1333,6 +1334,7 @@ def find_unused_imports(file_path: str) -> str:
     except Exception as e:
         return f"Error analyzing imports: {str(e)}"
 
+
 @mcp.tool()
 def generate_unit_tests(file_path: str, function_name: Optional[str] = None) -> str:
     """
@@ -1419,9 +1421,17 @@ def code_stats(file_path: str) -> str:
 
         # Parse AST
         tree = ast.parse(content)
-        function_count = sum(1 for node in ast.walk(tree) if isinstance(node, ast.FunctionDef))
-        class_count = sum(1 for node in ast.walk(tree) if isinstance(node, ast.ClassDef))
-        import_count = sum(1 for node in ast.walk(tree) if isinstance(node, (ast.Import, ast.ImportFrom)))
+        function_count = sum(
+            1 for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
+        )
+        class_count = sum(
+            1 for node in ast.walk(tree) if isinstance(node, ast.ClassDef)
+        )
+        import_count = sum(
+            1
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.Import, ast.ImportFrom))
+        )
 
         stats = f"Statistics for {file_path}:\n"
         stats += f"  Lines: {line_count} (non-empty: {non_empty_count})\n"
@@ -1432,6 +1442,192 @@ def code_stats(file_path: str) -> str:
         return stats
     except Exception as e:
         return f"Error computing statistics: {str(e)}"
+
+
+@mcp.tool()
+def code_review(path: str) -> str:
+    """
+    Run static analysis tools (pylint, flake8, bandit) on a Python file or directory.
+
+    Args:
+        path: Absolute path to a Python file or directory.
+
+    Returns:
+        A summary report of issues found.
+    """
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    p = Path(path).expanduser().resolve()
+    if not p.exists():
+        return f"Error: Path not found: {path}"
+
+    issues = []
+
+    # Run pylint
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pylint", "--output-format=text", str(p)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.stdout:
+            issues.append("=== Pylint ===\n" + result.stdout.strip())
+        if result.stderr:
+            issues.append("Pylint stderr: " + result.stderr.strip())
+    except subprocess.TimeoutExpired:
+        issues.append("Pylint timed out.")
+    except Exception as e:
+        issues.append(f"Pylint error: {e}")
+
+    # Run flake8
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "flake8", str(p)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.stdout:
+            issues.append("=== Flake8 ===\n" + result.stdout.strip())
+        if result.stderr:
+            issues.append("Flake8 stderr: " + result.stderr.strip())
+    except subprocess.TimeoutExpired:
+        issues.append("Flake8 timed out.")
+    except Exception as e:
+        issues.append(f"Flake8 error: {e}")
+
+    # Run bandit
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "bandit", "-r", str(p), "-f", "txt"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.stdout:
+            issues.append("=== Bandit ===\n" + result.stdout.strip())
+        if result.stderr:
+            issues.append("Bandit stderr: " + result.stderr.strip())
+    except subprocess.TimeoutExpired:
+        issues.append("Bandit timed out.")
+    except Exception as e:
+        issues.append(f"Bandit error: {e}")
+
+    if not issues:
+        return "No issues found or all tools failed."
+
+    return "\n\n".join(issues)
+
+
+@mcp.tool()
+def security_scan(path: str) -> str:
+    """
+    Run security scanning with bandit on a Python file or directory.
+
+    Args:
+        path: Absolute path to a Python file or directory.
+
+    Returns:
+        Security issues found by bandit.
+    """
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    p = Path(path).expanduser().resolve()
+    if not p.exists():
+        return f"Error: Path not found: {path}"
+
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "bandit", "-r", str(p), "-f", "txt"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        output = []
+        if result.stdout:
+            output.append(result.stdout.strip())
+        if result.stderr:
+            output.append("Stderr: " + result.stderr.strip())
+        if not output:
+            output.append("No output from bandit.")
+        return "\n".join(output)
+    except subprocess.TimeoutExpired:
+        return "Bandit timed out."
+    except Exception as e:
+        return f"Bandit error: {e}"
+
+
+@mcp.tool()
+def test_coverage(path: str) -> str:
+    """
+    Run test coverage analysis using coverage.py and pytest.
+
+    Args:
+        path: Absolute path to the project root directory.
+
+    Returns:
+        Coverage report summary.
+    """
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    p = Path(path).expanduser().resolve()
+    if not p.exists():
+        return f"Error: Path not found: {path}"
+    if not p.is_dir():
+        return "Error: Path must be a directory."
+
+    # Run coverage
+    try:
+        # First, ensure coverage is installed
+        import coverage
+    except ImportError:
+        return (
+            "Error: coverage module not installed. Install with 'pip install coverage'."
+        )
+
+    # Run coverage run -m pytest
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "coverage", "run", "-m", "pytest"],
+            cwd=str(p),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if result.returncode != 0:
+            # pytest may have failures, but coverage data may still be generated
+            pass
+    except subprocess.TimeoutExpired:
+        return "Test execution timed out."
+
+    # Generate coverage report
+    try:
+        report_result = subprocess.run(
+            [sys.executable, "-m", "coverage", "report"],
+            cwd=str(p),
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        output = []
+        if report_result.stdout:
+            output.append(report_result.stdout.strip())
+        if report_result.stderr:
+            output.append("Stderr: " + report_result.stderr.strip())
+        if not output:
+            output.append("No coverage output.")
+        return "\n".join(output)
+    except subprocess.TimeoutExpired:
+        return "Coverage report generation timed out."
+    except Exception as e:
+        return f"Coverage report error: {e}"
 
 
 if __name__ == "__main__":
