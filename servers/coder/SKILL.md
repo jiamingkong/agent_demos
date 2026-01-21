@@ -35,6 +35,7 @@ allowed-tools:
   - code_stats
   - code_review
   - security_scan
+  - add_missing_imports
   - test_coverage
 ---
 
@@ -172,6 +173,10 @@ Detect potential code smells in a Python file using radon metrics.
 
 ### find_unused_imports
 Detect unused imports in a Python file using AST.
+- `file_path`: Absolute path to the Python file.
+
+### add_missing_imports
+Add missing imports to a Python file.
 - `file_path`: Absolute path to the Python file.
 
 ### batch_format

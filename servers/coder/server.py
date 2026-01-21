@@ -1825,5 +1825,120 @@ def test_coverage(path: str) -> str:
         return f"Coverage report error: {e}"
 
 
+@mcp.tool()
+def add_missing_imports(file_path: str) -> str:
+    """
+    Add missing imports to a Python file.
+
+    Args:
+        file_path: Absolute path to the Python file.
+
+    Returns:
+        Summary of imports added or error message.
+    """
+    try:
+        import ast
+        import builtins
+        import importlib.util
+        import sys
+        from pathlib import Path
+
+        p = Path(file_path).expanduser().resolve()
+        if not p.exists():
+            return f"Error: File not found: {file_path}"
+        if p.suffix != ".py":
+            return "Error: Only Python files are supported."
+
+        content = p.read_text(encoding="utf-8")
+        lines = content.splitlines()
+        tree = ast.parse(content)
+
+        # Collect all names used in the code
+        used_names = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+                used_names.add(node.id)
+
+        # Remove builtins
+        builtin_names = set(dir(builtins))
+        used_names -= builtin_names
+
+        # Remove names that are already imported
+        imported_names = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    imported_names.add(alias.name)
+                    if alias.asname:
+                        imported_names.add(alias.asname)
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    for alias in node.names:
+                        imported_names.add(alias.name)
+                        if alias.asname:
+                            imported_names.add(alias.asname)
+        used_names -= imported_names
+
+        if not used_names:
+            return "No missing imports detected."
+
+        # Try to find which names correspond to importable modules
+        imports_to_add = []
+        for name in sorted(used_names):
+            # Check if it's a standard library module
+            if hasattr(sys, "stdlib_module_names"):
+                if name in sys.stdlib_module_names:
+                    imports_to_add.append(f"import {name}")
+                    continue
+            # Try to find spec
+            spec = importlib.util.find_spec(name)
+            if spec is not None:
+                imports_to_add.append(f"import {name}")
+                continue
+            # Could be from a submodule (e.g., pandas.DataFrame)
+            # We'll skip for now
+
+        if not imports_to_add:
+            return "Could not find importable modules for the missing names."
+
+        # Determine insertion point: after the last import statement or after module docstring
+        insert_line = 0
+        in_docstring = False
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped.startswith('"""') or stripped.startswith("'''"):
+                in_docstring = not in_docstring
+                continue
+            if not in_docstring and (
+                stripped.startswith("import ") or stripped.startswith("from ")
+            ):
+                insert_line = i + 1  # insert after this line
+            elif not in_docstring and stripped and not stripped.startswith("#"):
+                # First non-import, non-comment, non-empty line
+                if insert_line == 0:
+                    insert_line = i
+                break
+
+        # If no imports found, insert at line 0 (top of file)
+        if insert_line == 0:
+            insert_line = 0
+
+        # Insert imports
+        for imp in reversed(imports_to_add):
+            lines.insert(insert_line, imp)
+
+        new_content = "\n".join(lines) + ("\n" if lines else "")
+        p.write_text(new_content, encoding="utf-8")
+
+        summary = f"Added {len(imports_to_add)} import(s):\n"
+        for imp in imports_to_add:
+            summary += f"- {imp}\n"
+        return summary.strip()
+    except SyntaxError as e:
+        return f"Syntax error in file: {e}"
+    except Exception as e:
+        return f"Error adding imports: {str(e)}"
+
+
 if __name__ == "__main__":
     mcp.run()
