@@ -27,6 +27,11 @@
    - Formats a Python file using ruff formatter (if installed).
    - Alternative to Black for faster formatting.
 
+7. **Added `extract_function` tool**
+   - Extracts a block of code into a new function.
+   - Supports explicit parameter and return variable specification.
+   - Useful for refactoring.
+
 ## Future Improvements (Suggested)
 
 - Add `find_unused_imports` tool (using vulture or static analysis).

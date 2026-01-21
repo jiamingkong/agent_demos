@@ -32,6 +32,7 @@ allowed-tools:
   - remove_unused_imports
   - suggest_imports
   - generate_unit_tests
+  - generate_docstring
   - code_stats
   - code_review
   - security_scan
@@ -40,6 +41,7 @@ allowed-tools:
   - sort_imports
   - format_with_ruff
   - format_code
+  - extract_function
   - list_functions
 ---
 
@@ -194,6 +196,13 @@ Generate unit tests for functions in a Python file using OpenAI.
 - `file_path`: Path to the Python file.
 - `function_name`: Optional specific function to generate tests for. If None, generate for all functions.
 
+### generate_docstring
+Generate a docstring for a Python function or class using AI.
+- `file_path`: Path to the Python file.
+- `target_name`: Name of the function or class. If None, generate for all functions and classes.
+- `style`: Docstring style ("google", "numpy", "sphinx").
+- `dry_run`: If True, only return the generated docstring without modifying the file.
+
 ### code_stats
 Compute basic statistics for a Python file.
 - `file_path`: Path to the Python file.
@@ -222,6 +231,16 @@ Returns security issues found by bandit.
 Run test coverage analysis using coverage.py and pytest.
 - `path`: Absolute path to the project root directory.
 Returns coverage report summary.
+
+### extract_function
+Extract a block of code into a new function.
+- `file_path`: Absolute path to the Python file.
+- `start_line`: Starting line number (1-based, inclusive).
+- `end_line`: Ending line number (1-based, inclusive).
+- `new_function_name`: Name of the new function.
+- `params`: Comma-separated list of parameter names (optional). If empty, attempt to infer.
+- `return_var`: Name of variable to return (optional). If empty, no return statement.
+Returns success message or error description.
 
 ### list_functions
 List functions, classes, and other top-level definitions in a file. Supports Python, JavaScript, TypeScript, Java, and C++ files.

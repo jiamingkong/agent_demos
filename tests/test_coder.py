@@ -107,3 +107,42 @@ def long_func():
             assert "Error" not in result
         finally:
             os.unlink(f.name)
+
+
+def test_extract_function():
+    """Test extracting a code block into a new function."""
+    import tempfile
+    import os
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent / "servers"))
+    from coder.server import extract_function
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+        f.write("""def main():
+    a = 5
+    b = 3
+    # block start
+    x = a + b
+    print(x)
+    # block end
+    return x
+""")
+        f.flush()
+        try:
+            result = extract_function(
+                file_path=f.name,
+                start_line=5,
+                end_line=7,
+                new_function_name="add",
+                params="a,b",
+                return_var="x"
+            )
+            assert "Successfully extracted" in result
+            # Check file content
+            with open(f.name, 'r') as rf:
+                content = rf.read()
+                assert "def add(a, b):" in content
+                assert "x = add(a, b)" in content
+        finally:
+            os.unlink(f.name)

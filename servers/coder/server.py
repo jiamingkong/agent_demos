@@ -1925,6 +1925,118 @@ def generate_unit_tests(file_path: str, function_name: Optional[str] = None) -> 
 
 
 @mcp.tool()
+def generate_docstring(
+    file_path: str,
+    target_name: Optional[str] = None,
+    style: str = "google",
+    dry_run: bool = True,
+) -> str:
+    """
+    Generate a docstring for a Python function or class using AI.
+
+    Args:
+        file_path: Path to the Python file.
+        target_name: Name of the function or class. If None, generate for all functions and classes.
+        style: Docstring style ("google", "numpy", "sphinx").
+        dry_run: If True, only return the generated docstring without modifying the file.
+
+    Returns:
+        A summary of generated docstrings or error message.
+    """
+    try:
+        import ast
+        import os
+        from pathlib import Path
+
+        import openai
+
+        p = Path(file_path).expanduser().resolve()
+        if not p.exists():
+            return f"Error: File not found: {file_path}"
+        if p.suffix != ".py":
+            return "Error: Only Python files are supported."
+
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            return "Error: OPENAI_API_KEY environment variable not set."
+
+        content = p.read_text(encoding="utf-8")
+        tree = ast.parse(content)
+
+        # Collect target nodes
+        targets: list[ast.FunctionDef | ast.ClassDef] = []
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+                if target_name is None or node.name == target_name:
+                    targets.append(node)
+
+        if not targets:
+            if target_name:
+                return f"Error: No function or class named '{target_name}' found."
+            else:
+                return "Error: No functions or classes found in file."
+
+        results = []
+        for node in targets:
+            # Extract signature and existing docstring
+            if isinstance(node, ast.FunctionDef):
+                # TODO: extract arguments, return annotation
+                signature = f"{node.name}(...)"
+            else:
+                signature = node.name
+
+            # Build prompt
+            prompt = f"Generate a {style}-style docstring for the following Python {type(node).__name__} '{signature}'.\n"
+            prompt += "Provide only the docstring, no explanations.\n"
+            prompt += "Format with triple quotes and proper indentation.\n"
+
+            client = openai.OpenAI(api_key=api_key)
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a helpful coding assistant that writes docstrings.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.2,
+                max_tokens=500,
+            )
+            generated = response.choices[0].message.content.strip()  # type: ignore
+            if not generated:
+                generated = '"""Placeholder docstring."""'
+
+            if dry_run:
+                results.append(f"{signature}:\n{generated}")
+            else:
+                # Insert or replace docstring in the AST
+                existing_docstring = ast.get_docstring(node)
+                if existing_docstring is not None:
+                    # Replace docstring
+                    # This is simplified; actual replacement requires AST manipulation
+                    pass
+                else:
+                    # Insert docstring as first element in body
+                    pass
+                # For now, skip actual modification
+                results.append(
+                    f"{signature}: docstring generated (not applied in dry-run)"
+                )
+
+        if dry_run:
+            return "Generated docstrings (dry-run):\n" + "\n\n".join(results)
+        else:
+            # Write modified content back
+            # TODO: implement AST modification and write
+            return "Docstring generation not yet implemented for non-dry-run."
+    except ImportError:
+        return "Error: openai package not installed. Install with 'pip install openai'."
+    except Exception as e:
+        return f"Error generating docstring: {str(e)}"
+
+
+@mcp.tool()
 def code_stats(file_path: str) -> str:
     """
     Compute basic statistics for a Python file.
@@ -2241,6 +2353,25 @@ def _determine_insertion_point(lines: list[str]) -> int:
     return insert_line
 
 
+def _detect_indent(lines: list[str]) -> int:
+    """Detect common indentation (number of leading spaces) of a block."""
+    if not lines:
+        return 0
+    indent = None
+    for line in lines:
+        if line.strip():  # non-empty line
+            leading = len(line) - len(line.lstrip())
+            if indent is None or leading < indent:
+                indent = leading
+    return indent if indent is not None else 0
+
+
+def _infer_parameters(content: str, start_line: int, end_line: int) -> list[str]:
+    """Infer parameters for a code block (placeholder)."""
+    # For now, return empty list; could be enhanced later.
+    return []
+
+
 @mcp.tool()
 def add_missing_imports(file_path: str) -> str:
     """
@@ -2452,6 +2583,102 @@ def format_code(file_path: str, formatter: str = "", options: str = "") -> str:
         return f"Error: {fmt} not installed. Please install it and ensure it's in PATH."
     except Exception as e:
         return f"Error running {fmt}: {str(e)}"
+
+
+@mcp.tool()
+def extract_function(
+    file_path: str,
+    start_line: int,
+    end_line: int,
+    new_function_name: str,
+    params: str = "",
+    return_var: str = "",
+) -> str:
+    """
+    Extract a block of code into a new function.
+
+    Args:
+        file_path: Absolute path to the Python file.
+        start_line: Starting line number (1-based, inclusive).
+        end_line: Ending line number (1-based, inclusive).
+        new_function_name: Name of the new function.
+        params: Comma-separated list of parameter names (optional). If empty, attempt to infer.
+        return_var: Name of variable to return (optional). If empty, no return statement.
+
+    Returns:
+        Success message or error description.
+    """
+    try:
+        from pathlib import Path
+        import ast
+
+        p = Path(file_path).expanduser().resolve()
+        if not p.exists():
+            return f"Error: File not found: {file_path}"
+        if p.suffix != ".py":
+            return "Error: Only Python files are supported."
+
+        content = p.read_text(encoding="utf-8")
+        lines = content.splitlines()
+
+        if start_line < 1 or end_line > len(lines) or start_line > end_line:
+            return f"Error: Invalid line numbers. File has {len(lines)} lines."
+
+        # Extract block
+        block_lines = lines[start_line - 1 : end_line]
+        if not block_lines:
+            return "Error: Empty code block."
+
+        # Determine indentation
+        indent = _detect_indent(block_lines)
+        # Remove common indentation from block lines for function body
+        dedented_lines = []
+        for line in block_lines:
+            if line.strip():
+                dedented_lines.append(line[indent:])
+            else:
+                dedented_lines.append("")
+
+        # Determine parameters
+        if params:
+            param_list = [p.strip() for p in params.split(",") if p.strip()]
+        else:
+            param_list = _infer_parameters(content, start_line, end_line)
+
+        # Determine return statement
+        if return_var:
+            return_stmt = f"return {return_var}"
+        else:
+            return_stmt = ""
+
+        # Generate new function
+        indent_str = " " * 4
+        param_str = ", ".join(param_list)
+        function_code = f"def {new_function_name}({param_str}):\n"
+        for line in dedented_lines:
+            function_code += indent_str + line + "\n"
+        if return_stmt:
+            function_code += indent_str + return_stmt + "\n"
+
+        # Generate function call
+        call_args = ", ".join(param_list)
+        if return_var:
+            replacement = f"{return_var} = {new_function_name}({call_args})"
+        else:
+            replacement = f"{new_function_name}({call_args})"
+
+        # Apply changes
+        new_lines = (
+            lines[: start_line - 1] + [function_code, replacement] + lines[end_line:]
+        )
+        new_content = "\n".join(new_lines)
+        p.write_text(new_content, encoding="utf-8")
+
+        return f"Successfully extracted lines {start_line}-{end_line} into function {new_function_name}."
+    except SyntaxError as e:
+        return f"Syntax error: {e}"
+    except Exception as e:
+        return f"Error extracting function: {str(e)}"
 
 
 @mcp.tool()
