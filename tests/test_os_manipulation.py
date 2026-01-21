@@ -9,8 +9,12 @@ from pathlib import Path
 # Add servers to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "servers"))
 
-from os_manipulation.server import (create_directories, list_directory,
-                                    move_files, move_files_by_regex)
+from os_manipulation.server import (
+    create_directories,
+    list_directory,
+    move_files,
+    move_files_by_regex,
+)
 
 
 def test_list_directory():

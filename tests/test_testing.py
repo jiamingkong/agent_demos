@@ -8,8 +8,7 @@ from unittest.mock import Mock, patch
 # Add servers to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "servers"))
 
-from testing.server import (get_test_coverage, list_test_files, run_pytest,
-                            run_test_file)
+from testing.server import get_test_coverage, list_test_files, run_pytest, run_test_file
 
 
 def test_run_pytest():

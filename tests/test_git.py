@@ -10,9 +10,21 @@ import pytest
 # Add servers to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "servers"))
 
-from git.server import (git_add, git_branch, git_checkout, git_clone,
-                        git_commit, git_diff, git_init, git_log, git_pull,
-                        git_push, git_remote, git_status, run_git_command)
+from git.server import (
+    git_add,
+    git_branch,
+    git_checkout,
+    git_clone,
+    git_commit,
+    git_diff,
+    git_init,
+    git_log,
+    git_pull,
+    git_push,
+    git_remote,
+    git_status,
+    run_git_command,
+)
 
 
 def test_run_git_command():

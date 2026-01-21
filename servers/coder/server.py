@@ -225,7 +225,7 @@ def investigate_and_save_report(folder_path: str) -> str:
                     other_files_summary.append(
                         f"- **{file_rel_path}**\n```text\n{preview}\n```"
                     )
-                except:
+                except Exception:
                     pass
 
     # Construct the report
@@ -377,7 +377,7 @@ def apply_edit_blocks(file_path: str, edits: str) -> str:
         # Regex to find blocks. We assume markers are on their own lines.
         # Captures content between markers.
         pattern = re.compile(
-            r"<<<<<<< SEARCH\n(.*?)=======\n(.*?)>>>>>>> REPLACE", re.DOTALL
+            r"<<<<<<< SEARCH\s*\n(.*?)=======\s*\n(.*?)>>>>>>> REPLACE", re.DOTALL
         )
 
         changes = pattern.findall(edits)
@@ -388,12 +388,22 @@ def apply_edit_blocks(file_path: str, edits: str) -> str:
 
         for i, (search_block, replace_block) in enumerate(changes, 1):
             if search_block not in new_content:
-                return f"Error applying Edit #{i}: SEARCH block not found in file. Ensure exact match including indentation and whitespace."
+                # Provide a snippet of the file content for debugging
+                snippet = content[:500] + ("..." if len(content) > 500 else "")
+                return f"Error applying Edit #{i}: SEARCH block not found in file. Ensure exact match including indentation and whitespace.\n\nFirst 500 characters of file:\n```\n{snippet}\n```\n\nTip: Use the read_code_file tool to see the exact content."
 
             if new_content.count(search_block) > 1:
                 return f"Error applying Edit #{i}: SEARCH block matches multiple locations (count: {new_content.count(search_block)}). Include more context."
 
             new_content = new_content.replace(search_block, replace_block, 1)
+
+        # Optional syntax validation for Python files
+        if p.suffix == ".py":
+            try:
+                ast.parse(new_content)
+            except SyntaxError as syn_err:
+                # Provide more helpful error message
+                return f"Error applying edits: Resulting Python file has syntax error: {syn_err}. Changes were not applied."
 
         p.write_text(new_content, encoding="utf-8")
         return f"Successfully applied {len(changes)} edits to {p.name}."
@@ -1116,6 +1126,124 @@ def profile_python_file(file_path: str, sort_by: str = "time") -> str:
         return "Error: Profiling timed out after 30 seconds."
     except Exception as e:
         return f"Error during profiling: {str(e)}"
+
+
+@mcp.tool()
+def detect_code_smells(
+    file_path: str, cc_threshold: int = 10, loc_threshold: int = 50
+) -> str:
+    """
+    Detect potential code smells in a Python file using radon metrics.
+
+    Args:
+        file_path: Absolute path to the Python file.
+        cc_threshold: Cyclomatic complexity threshold (default 10).
+        loc_threshold: Lines of code per function threshold (default 50).
+
+    Returns:
+        Markdown report listing functions that exceed thresholds.
+    """
+    try:
+        from radon.complexity import cc_visit
+        from radon.raw import analyze
+    except ImportError:
+        return "Error: radon library not installed. Install with 'pip install radon'."
+
+    from pathlib import Path
+
+    p = Path(file_path).expanduser().resolve()
+    if not p.exists():
+        return f"Error: File not found: {file_path}"
+    if p.suffix != ".py":
+        return "Error: Only Python files are supported."
+
+    content = p.read_text(encoding="utf-8")
+    # Raw metrics
+    raw = analyze(content)
+    # Cyclomatic complexity
+    blocks = cc_visit(content)
+
+    report = []
+    report.append(f"# Code Smell Analysis for {p.name}")
+    report.append(f"Cyclomatic complexity threshold: {cc_threshold}")
+    report.append(f"Lines of code threshold: {loc_threshold}")
+    report.append("")
+
+    smells = []
+    for block in blocks:
+        if block.complexity > cc_threshold:
+            smells.append((block.name, block.complexity, "high cyclomatic complexity"))
+        # Estimate lines of code (endline - startline + 1)
+        loc = block.endline - block.lineno + 1
+        if loc > loc_threshold:
+            smells.append((block.name, loc, "long function"))
+
+    if not smells:
+        report.append("✅ No code smells detected.")
+    else:
+        report.append("## Potential Code Smells")
+        report.append("| Function | Value | Issue |")
+        report.append("|----------|-------|-------|")
+        for name, value, issue in smells:
+            report.append(f"| {name} | {value} | {issue} |")
+
+    return "\n".join(report)
+
+
+@mcp.tool()
+def generate_unit_tests(file_path: str, function_name: Optional[str] = None) -> str:
+    """
+    Generate unit tests for functions in a Python file using OpenAI.
+
+    Args:
+        file_path: Path to the Python file.
+        function_name: Optional specific function to generate tests for. If None, generate for all functions.
+
+    Returns:
+        Generated test code as a string.
+    """
+    try:
+        import os
+        from pathlib import Path
+
+        import openai
+
+        p = Path(file_path).expanduser().resolve()
+        if not p.exists():
+            return f"Error: File not found: {file_path}"
+        if p.suffix != ".py":
+            return "Error: Only Python files are supported."
+
+        content = p.read_text(encoding="utf-8")
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            return "Error: OPENAI_API_KEY environment variable not set."
+
+        # Prepare prompt
+        prompt = f"Generate pytest unit tests for the following Python code:\n\n```python\n{content}\n```\n"
+        if function_name:
+            prompt += f"Focus on testing the function '{function_name}'.\n"
+        prompt += "Provide only the test code, no explanations. Use pytest style."
+
+        client = openai.OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a helpful coding assistant that writes unit tests.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.2,
+            max_tokens=1000,
+        )
+        generated = response.choices[0].message.content.strip()
+        return f"Generated unit tests:\n```python\n{generated}\n```"
+    except ImportError:
+        return "Error: openai package not installed. Install with 'pip install openai'."
+    except Exception as e:
+        return f"Error generating unit tests: {str(e)}"
 
 
 if __name__ == "__main__":

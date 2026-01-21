@@ -1,14 +1,16 @@
-import json
 import asyncio
-from typing import Dict, Any
-from mcp.server import Server
+import json
+from typing import Any, Dict
+
 import mcp.server.stdio
 import mcp.types as types
+from mcp.server import Server
 
 app = Server("schedule_skill")
 
 # Placeholder for scheduler
 scheduler = None
+
 
 @app.list_tools()
 async def handle_list_tools() -> list[types.Tool]:
@@ -20,8 +22,14 @@ async def handle_list_tools() -> list[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "task_id": {"type": "string", "description": "Unique identifier for the task"},
-                    "run_at": {"type": "string", "description": "ISO 8601 datetime string"},
+                    "task_id": {
+                        "type": "string",
+                        "description": "Unique identifier for the task",
+                    },
+                    "run_at": {
+                        "type": "string",
+                        "description": "ISO 8601 datetime string",
+                    },
                     "command": {"type": "string", "description": "Command to execute"},
                 },
                 "required": ["task_id", "run_at", "command"],
@@ -33,8 +41,14 @@ async def handle_list_tools() -> list[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "task_id": {"type": "string", "description": "Unique identifier for the task"},
-                    "cron_expression": {"type": "string", "description": "Cron string (e.g., '0 9 * * *')"},
+                    "task_id": {
+                        "type": "string",
+                        "description": "Unique identifier for the task",
+                    },
+                    "cron_expression": {
+                        "type": "string",
+                        "description": "Cron string (e.g., '0 9 * * *')",
+                    },
                     "command": {"type": "string", "description": "Command to execute"},
                 },
                 "required": ["task_id", "cron_expression", "command"],
@@ -55,7 +69,10 @@ async def handle_list_tools() -> list[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "task_id": {"type": "string", "description": "ID of the task to cancel"},
+                    "task_id": {
+                        "type": "string",
+                        "description": "ID of the task to cancel",
+                    },
                 },
                 "required": ["task_id"],
             },
@@ -80,15 +97,20 @@ async def handle_list_tools() -> list[types.Tool]:
         ),
     ]
 
+
 @app.call_tool()
 async def handle_call_tool(
     name: str, arguments: Dict[str, Any]
 ) -> list[types.TextContent]:
     """Execute the requested tool."""
     if name == "schedule_task":
-        return [types.TextContent(type="text", text="Schedule task not yet implemented")]
+        return [
+            types.TextContent(type="text", text="Schedule task not yet implemented")
+        ]
     elif name == "schedule_cron":
-        return [types.TextContent(type="text", text="Schedule cron not yet implemented")]
+        return [
+            types.TextContent(type="text", text="Schedule cron not yet implemented")
+        ]
     elif name == "list_scheduled_tasks":
         return [types.TextContent(type="text", text="No scheduled tasks (placeholder)")]
     elif name == "cancel_task":
@@ -100,10 +122,12 @@ async def handle_call_tool(
     else:
         return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
 
+
 async def main():
     """Run the server over stdio."""
     async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
         await app.run(read_stream, write_stream)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -26,6 +26,7 @@ allowed-tools:
   - refactor_rename
   - debug_insert_breakpoint
   - profile_python_file
+  - detect_code_smells
 ---
 
 # Coder Skill
@@ -158,6 +159,12 @@ Insert a breakpoint at a specific line in a Python file.
 Profile a Python script using cProfile and return a summary.
 - `file_path`: Absolute path to the Python script.
 - `sort_by`: Sorting criterion for profiling output (e.g., "time", "calls", "cumulative").
+
+### detect_code_smells
+Detect potential code smells in a Python file using radon metrics.
+- `file_path`: Absolute path to the Python file.
+- `cc_threshold`: Cyclomatic complexity threshold (default 10).
+- `loc_threshold`: Lines of code per function threshold (default 50).
 
 ## Usage Strategy: Reliable Code Editing
 

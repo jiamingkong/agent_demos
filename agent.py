@@ -12,8 +12,11 @@ from typing import Any, Dict, List, Optional, cast
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from openai import OpenAI, OpenAIError
-from openai.types.chat import (ChatCompletionChunk, ChatCompletionMessageParam,
-                               ChatCompletionToolParam)
+from openai.types.chat import (
+    ChatCompletionChunk,
+    ChatCompletionMessageParam,
+    ChatCompletionToolParam,
+)
 from rich.console import Console
 from rich.live import Live
 from rich.markdown import Markdown

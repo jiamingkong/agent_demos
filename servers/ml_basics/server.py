@@ -6,8 +6,7 @@ import pandas as pd
 from mcp.server.fastmcp import FastMCP
 from sklearn.cluster import KMeans
 from sklearn.linear_model import LinearRegression, LogisticRegression
-from sklearn.metrics import (accuracy_score, mean_squared_error,
-                             silhouette_score)
+from sklearn.metrics import accuracy_score, mean_squared_error, silhouette_score
 from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier
 

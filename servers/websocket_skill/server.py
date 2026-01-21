@@ -1,15 +1,17 @@
 import asyncio
 import json
-from typing import Dict, Any
-from mcp.server import Server
+from typing import Any, Dict
+
 import mcp.server.stdio
 import mcp.types as types
+from mcp.server import Server
 
 app = Server("websocket_skill")
 
 # In‑memory storage for connections and servers
-connections = {}
-servers = {}
+connections: Dict[str, Any] = {}
+servers: Dict[str, Any] = {}
+
 
 @app.list_tools()
 async def handle_list_tools() -> list[types.Tool]:
@@ -22,7 +24,11 @@ async def handle_list_tools() -> list[types.Tool]:
                 "type": "object",
                 "properties": {
                     "uri": {"type": "string", "description": "WebSocket URI"},
-                    "timeout": {"type": "number", "description": "Connection timeout in seconds", "default": 10},
+                    "timeout": {
+                        "type": "number",
+                        "description": "Connection timeout in seconds",
+                        "default": 10,
+                    },
                 },
                 "required": ["uri"],
             },
@@ -33,8 +39,14 @@ async def handle_list_tools() -> list[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "connection_id": {"type": "string", "description": "ID of the connection"},
-                    "message": {"type": "string", "description": "Text message to send"},
+                    "connection_id": {
+                        "type": "string",
+                        "description": "ID of the connection",
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Text message to send",
+                    },
                 },
                 "required": ["connection_id", "message"],
             },
@@ -45,8 +57,15 @@ async def handle_list_tools() -> list[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "connection_id": {"type": "string", "description": "ID of the connection"},
-                    "timeout": {"type": "number", "description": "Receive timeout in seconds", "default": 10},
+                    "connection_id": {
+                        "type": "string",
+                        "description": "ID of the connection",
+                    },
+                    "timeout": {
+                        "type": "number",
+                        "description": "Receive timeout in seconds",
+                        "default": 10,
+                    },
                 },
                 "required": ["connection_id"],
             },
@@ -57,7 +76,10 @@ async def handle_list_tools() -> list[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "connection_id": {"type": "string", "description": "ID of the connection"},
+                    "connection_id": {
+                        "type": "string",
+                        "description": "ID of the connection",
+                    },
                 },
                 "required": ["connection_id"],
             },
@@ -68,9 +90,21 @@ async def handle_list_tools() -> list[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "host": {"type": "string", "description": "Bind address", "default": "localhost"},
-                    "port": {"type": "integer", "description": "Bind port", "default": 8765},
-                    "path": {"type": "string", "description": "Optional path", "default": "/"},
+                    "host": {
+                        "type": "string",
+                        "description": "Bind address",
+                        "default": "localhost",
+                    },
+                    "port": {
+                        "type": "integer",
+                        "description": "Bind port",
+                        "default": 8765,
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Optional path",
+                        "default": "/",
+                    },
                 },
                 "required": [],
             },
@@ -88,6 +122,7 @@ async def handle_list_tools() -> list[types.Tool]:
         ),
     ]
 
+
 @app.call_tool()
 async def handle_call_tool(
     name: str, arguments: Dict[str, Any]
@@ -95,24 +130,42 @@ async def handle_call_tool(
     """Execute the requested tool."""
     if name == "websocket_connect":
         # Placeholder implementation
-        return [types.TextContent(type="text", text="WebSocket connect not yet implemented")]
+        return [
+            types.TextContent(type="text", text="WebSocket connect not yet implemented")
+        ]
     elif name == "websocket_send":
-        return [types.TextContent(type="text", text="WebSocket send not yet implemented")]
+        return [
+            types.TextContent(type="text", text="WebSocket send not yet implemented")
+        ]
     elif name == "websocket_receive":
-        return [types.TextContent(type="text", text="WebSocket receive not yet implemented")]
+        return [
+            types.TextContent(type="text", text="WebSocket receive not yet implemented")
+        ]
     elif name == "websocket_close":
-        return [types.TextContent(type="text", text="WebSocket close not yet implemented")]
+        return [
+            types.TextContent(type="text", text="WebSocket close not yet implemented")
+        ]
     elif name == "websocket_server_start":
-        return [types.TextContent(type="text", text="WebSocket server start not yet implemented")]
+        return [
+            types.TextContent(
+                type="text", text="WebSocket server start not yet implemented"
+            )
+        ]
     elif name == "websocket_server_stop":
-        return [types.TextContent(type="text", text="WebSocket server stop not yet implemented")]
+        return [
+            types.TextContent(
+                type="text", text="WebSocket server stop not yet implemented"
+            )
+        ]
     else:
         return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
+
 
 async def main():
     """Run the server over stdio."""
     async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
         await app.run(read_stream, write_stream)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

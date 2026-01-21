@@ -6,8 +6,13 @@ from pathlib import Path
 # Add servers to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "servers"))
 
-from docker_skill.server import (docker_images, docker_logs, docker_ps,
-                                 docker_run, docker_stop)
+from docker_skill.server import (
+    docker_images,
+    docker_logs,
+    docker_ps,
+    docker_run,
+    docker_stop,
+)
 
 
 def test_docker_ps():

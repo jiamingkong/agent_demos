@@ -7,8 +7,13 @@ from unittest.mock import Mock, patch
 # Add servers to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "servers"))
 
-from sys_admin.server import (get_system_info, ssh_connect, ssh_disconnect,
-                              ssh_list_connections, ssh_run_command)
+from sys_admin.server import (
+    get_system_info,
+    ssh_connect,
+    ssh_disconnect,
+    ssh_list_connections,
+    ssh_run_command,
+)
 
 
 def test_get_system_info():

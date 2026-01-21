@@ -8,7 +8,11 @@ from pathlib import Path
 # Add servers to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "servers"))
 
-from coder.server import _analyze_python_file, investigate_and_save_report
+from coder.server import (
+    _analyze_python_file,
+    detect_code_smells,
+    investigate_and_save_report,
+)
 
 
 def test_analyze_python_file():
@@ -52,3 +56,54 @@ def test_investigate_and_save_report(tmp_path):
     assert report.exists()
     content = report.read_text()
     assert "Project Context Report" in content
+
+
+def test_detect_code_smells():
+    """Test code smell detection."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+        f.write("""
+def simple():
+    pass
+
+def complex_func():
+    if True:
+        if False:
+            for i in range(10):
+                while i:
+                    i -= 1
+    return 0
+
+def long_func():
+    # many lines
+    a = 1
+    a = 2
+    a = 3
+    a = 4
+    a = 5
+    a = 6
+    a = 7
+    a = 8
+    a = 9
+    a = 10
+    a = 11
+    a = 12
+    a = 13
+    a = 14
+    a = 15
+    a = 16
+    a = 17
+    a = 18
+    a = 19
+    a = 20
+    return a
+""")
+        f.flush()
+        try:
+            result = detect_code_smells(f.name, cc_threshold=2, loc_threshold=15)
+            # Should detect high complexity and long function
+            assert "high cyclomatic complexity" in result
+            assert "long function" in result
+            # Ensure no error
+            assert "Error" not in result
+        finally:
+            os.unlink(f.name)

@@ -11,8 +11,7 @@ from pathlib import Path
 # Add servers to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "servers"))
 
-from delegation.server import (check_task_status, delegate_task,
-                               list_available_skills)
+from delegation.server import check_task_status, delegate_task, list_available_skills
 
 
 def test_list_available_skills(tmp_path):

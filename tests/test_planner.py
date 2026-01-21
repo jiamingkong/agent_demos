@@ -9,9 +9,15 @@ from pathlib import Path
 # Add servers to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "servers"))
 
-from planner.server import (add_finding, erase_plans, init_planning,
-                            mark_step_complete, read_plan, resume_last_run,
-                            update_plan_status)
+from planner.server import (
+    add_finding,
+    erase_plans,
+    init_planning,
+    mark_step_complete,
+    read_plan,
+    resume_last_run,
+    update_plan_status,
+)
 
 
 def test_init_planning(tmp_path):

@@ -2,10 +2,13 @@ import os
 import tempfile
 from pathlib import Path
 
-from servers.file_compression.server import (compress_directory, compress_file,
-                                             decompress_archive,
-                                             get_archive_info,
-                                             list_archive_contents)
+from servers.file_compression.server import (
+    compress_directory,
+    compress_file,
+    decompress_archive,
+    get_archive_info,
+    list_archive_contents,
+)
 
 
 def test_compress_file():

@@ -23,9 +23,12 @@ except ImportError:
 if not HAS_PYPDF2 and not HAS_PDFPLUMBER:
     pytest.skip("No PDF library available", allow_module_level=True)
 
-from servers.pdf_skill.server import (convert_pdf_to_text_file,
-                                      extract_pages_from_pdf,
-                                      extract_text_from_pdf, get_pdf_info)
+from servers.pdf_skill.server import (
+    convert_pdf_to_text_file,
+    extract_pages_from_pdf,
+    extract_text_from_pdf,
+    get_pdf_info,
+)
 
 
 def create_sample_pdf(path: str):

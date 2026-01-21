@@ -9,8 +9,7 @@ import pytest
 # Add servers to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "servers"))
 
-from data_validation.server import (parse_model, validate_data,
-                                    validate_json_schema)
+from data_validation.server import parse_model, validate_data, validate_json_schema
 
 
 def test_validate_data_success():
