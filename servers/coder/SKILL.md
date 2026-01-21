@@ -27,6 +27,10 @@ allowed-tools:
   - debug_insert_breakpoint
   - profile_python_file
   - detect_code_smells
+  - batch_format
+  - find_unused_imports
+  - generate_unit_tests
+  - code_stats
 ---
 
 # Coder Skill
@@ -97,13 +101,6 @@ Generate code based on a natural language prompt using OpenAI.
 - `prompt`: Natural language description of the code to generate.
 - `language`: Programming language (default: "python").
 
-### search_and_replace
-Search and replace across multiple files using grep and sed.
-- `folder_path`: Directory to search in.
-- `search_pattern`: Regex pattern to search for.
-- `replace_pattern`: Replacement string (supports backreferences).
-- `file_pattern`: File pattern to filter (default "*").
-
 ### git_status
 Show git status of a repository.
 - `repo_path`: Path to the git repository (default current directory).
@@ -166,6 +163,34 @@ Detect potential code smells in a Python file using radon metrics.
 - `cc_threshold`: Cyclomatic complexity threshold (default 10).
 - `loc_threshold`: Lines of code per function threshold (default 50).
 
+
+### find_unused_imports
+Detect unused imports in a Python file using AST.
+- `file_path`: Absolute path to the Python file.
+
+### batch_format
+Format all Python files in a directory using Black.
+- `directory`: Path to the directory containing Python files.
+- `file_pattern`: File pattern to match (default "*.py").
+
+### generate_unit_tests
+Generate unit tests for functions in a Python file using OpenAI.
+- `file_path`: Path to the Python file.
+- `function_name`: Optional specific function to generate tests for. If None, generate for all functions.
+
+### code_stats
+Compute basic statistics for a Python file.
+- `file_path`: Path to the Python file.
+
+### search_and_replace
+Search and replace across multiple files using grep and sed, with optional dry-run and backup retention.
+- `folder_path`: Directory to search in.
+- `search_pattern`: Regex pattern to search for.
+- `replace_pattern`: Replacement string (supports backreferences).
+- `file_pattern`: File pattern to filter (default "*").
+- `dry_run`: If True, only show which files would be changed.
+- `keep_backup`: If True, keep backup files (.bak) after replacement.
+- `max_files`: Maximum number of files to process (optional).
 ## Usage Strategy: Reliable Code Editing
 
 To edit files efficiently and correctly using `apply_edit_blocks`, follow this distinct workflow. This method prevents "SEARCH block not found" errors by ensuring you have the exact text.

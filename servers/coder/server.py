@@ -657,7 +657,13 @@ def generate_code(prompt: str, language: str = "python") -> str:
 
 @mcp.tool()
 def search_and_replace(
-    folder_path: str, search_pattern: str, replace_pattern: str, file_pattern: str = "*"
+    folder_path: str,
+    search_pattern: str,
+    replace_pattern: str,
+    file_pattern: str = "*",
+    dry_run: bool = False,
+    keep_backup: bool = False,
+    max_files: Optional[int] = None,
 ) -> str:
     """
     Search and replace across multiple files using grep and sed.
@@ -667,6 +673,9 @@ def search_and_replace(
         search_pattern: Regex pattern to search for.
         replace_pattern: Replacement string (supports backreferences).
         file_pattern: File pattern to filter (default "*").
+        dry_run: If True, only show which files would be changed.
+        keep_backup: If True, keep backup files (.bak) after replacement.
+        max_files: Maximum number of files to process (optional).
 
     Returns:
         Summary of replacements made.
@@ -681,13 +690,7 @@ def search_and_replace(
         if not p.is_dir():
             return f"Error: Path is not a directory: {folder_path}"
 
-        # Use find + xargs + sed -i
-        find_cmd = ["find", str(p), "-type", "f", "-name", file_pattern]
-        # Exclude binary files
-        find_cmd.extend(["!", "-exec", "file", "{}", ";", "|", "grep", "-q", "binary"])
-        # Combine with xargs sed
-        # We'll use a simpler approach: loop over files
-        # For safety, we'll do a dry-run first
+        # Use grep to find files containing the pattern
         result = subprocess.run(
             ["grep", "-r", "-l", search_pattern, str(p)],
             capture_output=True,
@@ -697,8 +700,16 @@ def search_and_replace(
             return f"Grep failed: {result.stderr}"
         files = result.stdout.strip().split("\n")
         files = [f for f in files if f]
+        if max_files is not None:
+            files = files[:max_files]
         if not files:
             return "No files matched the search pattern."
+
+        if dry_run:
+            lines = ["## Files that would be modified (dry run):", ""]
+            for file in files:
+                lines.append(f"- `{file}`")
+            return "\n".join(lines)
 
         # Perform replacement
         replaced_count = 0
@@ -708,16 +719,82 @@ def search_and_replace(
                 ["sed", "-i.bak", f"s/{search_pattern}/{replace_pattern}/g", file],
                 check=False,
             )
-            # Remove backup
-            backup = file + ".bak"
-            if os.path.exists(backup):
-                os.remove(backup)
+            # Remove backup unless keep_backup is True
+            if not keep_backup:
+                backup = file + ".bak"
+                if os.path.exists(backup):
+                    os.remove(backup)
             replaced_count += 1
 
-        return f"Replaced pattern '{search_pattern}' with '{replace_pattern}' in {replaced_count} files."
+        summary = f"Replaced pattern '{search_pattern}' with '{replace_pattern}' in {replaced_count} files."
+        if keep_backup:
+            summary += " Backup files (.bak) have been kept."
+        return summary
     except Exception as e:
         return f"Error in search_and_replace: {str(e)}"
 
+
+@mcp.tool()
+def batch_format(directory: str, file_pattern: str = "*.py") -> str:
+    """
+    Format all Python files in a directory using Black.
+
+    Args:
+        directory: Path to the directory containing Python files.
+        file_pattern: File pattern to match (default "*.py").
+
+    Returns:
+        Summary of formatted files.
+    """
+    try:
+        import subprocess
+        from pathlib import Path
+        import fnmatch
+
+        p = Path(directory).expanduser().resolve()
+        if not p.exists():
+            return f"Error: Directory not found: {directory}"
+        if not p.is_dir():
+            return f"Error: Path is not a directory: {directory}"
+
+        # Collect matching files
+        files = []
+        for file in p.rglob(file_pattern):
+            if file.is_file():
+                files.append(str(file))
+
+        if not files:
+            return f"No files matching pattern '{file_pattern}' found."
+
+        formatted_count = 0
+        errors = []
+        for file in files:
+            try:
+                result = subprocess.run(
+                    ["black", file],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                if result.returncode == 0:
+                    formatted_count += 1
+                else:
+                    errors.append(f"{file}: {result.stderr}")
+            except subprocess.TimeoutExpired:
+                errors.append(f"{file}: Black formatting timed out.")
+            except Exception as e:
+                errors.append(f"{file}: {e}")
+
+        summary_lines = [f"Formatted {formatted_count} out of {len(files)} files."]
+        if errors:
+            summary_lines.append("\nErrors:")
+            for err in errors[:5]:  # limit error output
+                summary_lines.append(f"- {err}")
+            if len(errors) > 5:
+                summary_lines.append(f"... and {len(errors) - 5} more errors.")
+        return "\n".join(summary_lines)
+    except Exception as e:
+        return f"Error in batch_format: {str(e)}"
 
 @mcp.tool()
 def git_status(repo_path: str = ".") -> str:
@@ -1191,6 +1268,72 @@ def detect_code_smells(
 
 
 @mcp.tool()
+def find_unused_imports(file_path: str) -> str:
+    """
+    Detect unused imports in a Python file using AST.
+
+    Args:
+        file_path: Absolute path to the Python file.
+
+    Returns:
+        Markdown list of unused imports or success message.
+    """
+    try:
+        import ast
+        import builtins
+        from pathlib import Path
+
+        p = Path(file_path).expanduser().resolve()
+        if not p.exists():
+            return f"Error: File not found: {file_path}"
+        if p.suffix != ".py":
+            return "Error: Only Python files are supported."
+
+        content = p.read_text(encoding="utf-8")
+        tree = ast.parse(content)
+
+        # Collect imported names
+        imported_names = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    imported_names.add(alias.name)
+                    if alias.asname:
+                        imported_names.add(alias.asname)
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    # For 'from module import x', we track x, not module
+                    for alias in node.names:
+                        imported_names.add(alias.name)
+                        if alias.asname:
+                            imported_names.add(alias.asname)
+
+        # Collect all names used in the code (excluding imports)
+        used_names = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+                used_names.add(node.id)
+
+        # Remove builtins and special names
+        builtin_names = set(dir(builtins))
+        used_names -= builtin_names
+
+        # Find unused imports
+        unused = imported_names - used_names
+        if not unused:
+            return "No unused imports found."
+
+        # Format output
+        lines = ["## Unused Imports", ""]
+        for name in sorted(unused):
+            lines.append(f"- `{name}`")
+        return "\n".join(lines)
+    except SyntaxError as e:
+        return f"Syntax error in file: {e}"
+    except Exception as e:
+        return f"Error analyzing imports: {str(e)}"
+
+@mcp.tool()
 def generate_unit_tests(file_path: str, function_name: Optional[str] = None) -> str:
     """
     Generate unit tests for functions in a Python file using OpenAI.
@@ -1244,6 +1387,51 @@ def generate_unit_tests(file_path: str, function_name: Optional[str] = None) -> 
         return "Error: openai package not installed. Install with 'pip install openai'."
     except Exception as e:
         return f"Error generating unit tests: {str(e)}"
+
+
+@mcp.tool()
+def code_stats(file_path: str) -> str:
+    """
+    Compute basic statistics for a Python file.
+
+    Args:
+        file_path: Path to the Python file.
+
+    Returns:
+        Statistics as a formatted string.
+    """
+    try:
+        import ast
+        from pathlib import Path
+
+        p = Path(file_path).expanduser().resolve()
+        if not p.exists():
+            return f"Error: File not found: {file_path}"
+        if p.suffix != ".py":
+            return "Error: Only Python files are supported."
+
+        content = p.read_text(encoding="utf-8")
+        lines = content.splitlines()
+        line_count = len(lines)
+        char_count = len(content)
+        non_empty_lines = [line for line in lines if line.strip()]
+        non_empty_count = len(non_empty_lines)
+
+        # Parse AST
+        tree = ast.parse(content)
+        function_count = sum(1 for node in ast.walk(tree) if isinstance(node, ast.FunctionDef))
+        class_count = sum(1 for node in ast.walk(tree) if isinstance(node, ast.ClassDef))
+        import_count = sum(1 for node in ast.walk(tree) if isinstance(node, (ast.Import, ast.ImportFrom)))
+
+        stats = f"Statistics for {file_path}:\n"
+        stats += f"  Lines: {line_count} (non-empty: {non_empty_count})\n"
+        stats += f"  Characters: {char_count}\n"
+        stats += f"  Functions: {function_count}\n"
+        stats += f"  Classes: {class_count}\n"
+        stats += f"  Imports: {import_count}\n"
+        return stats
+    except Exception as e:
+        return f"Error computing statistics: {str(e)}"
 
 
 if __name__ == "__main__":
