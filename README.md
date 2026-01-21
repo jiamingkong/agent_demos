@@ -160,16 +160,19 @@ pre-commit install
 
 ## New Skills Added
 
-The project now includes three additional skills to extend its capabilities:
+The project now includes six additional skills to extend its capabilities:
 
 1. **Notification Skill** – send messages to Slack, Telegram, Discord, and generic webhooks.
 2. **WebSocket Skill** – connect to WebSocket servers and host simple echo servers (placeholder implementation).
 3. **Schedule Skill** – schedule one‑time and cron‑based tasks using APScheduler (placeholder implementation).
+4. **Translation Skill** – translate text between languages using Google Translate (googletrans).
+5. **Weather Skill** – get current weather data for any city using OpenWeatherMap API.
+6. **Summarization Skill** – generate extractive summaries of long texts using sumy library.
 
-These skills are located in `servers/notification_skill`, `servers/websocket_skill`, and `servers/schedule_skill`. To use them, install the extra dependencies:
+These skills are located in `servers/notification_skill`, `servers/websocket_skill`, `servers/schedule_skill`, `servers/translation_skill`, `servers/weather_skill`, and `servers/summarization_skill`. To use them, install the extra dependencies:
 
 ```bash
-pip install apscheduler websockets
+pip install apscheduler websockets googletrans==4.0.0rc1 sumy
 ```
 
 For usage examples, see `artifacts/new_skills_examples.md`.

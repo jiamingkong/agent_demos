@@ -1,3 +1,4 @@
+httpx>=0.28.1
 openai
 rich
 mcp
@@ -23,3 +24,5 @@ Jinja2
 dnspython
 -e apscheduler
 websockets
+googletrans==4.0.0rc1
+sumy
