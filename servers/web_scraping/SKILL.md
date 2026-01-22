@@ -5,6 +5,8 @@ allowed-tools:
   - scrape_url
   - extract_links
   - find_elements
+  - scrape_with_selenium
+  - extract_tables
 ---
 
 # Web Scraping Skill
@@ -43,6 +45,29 @@ Args:
 Returns:
 Extracted text from matched elements.
 
+### scrape_with_selenium
+Fetch dynamically rendered HTML using Selenium WebDriver (Chrome). Supports JavaScript-heavy pages.
+
+Args:
+- `url`: The URL to scrape.
+- `selector`: Optional CSS selector to filter elements after page load.
+- `wait_time`: Maximum time to wait for page load (seconds). Default 10.
+
+Returns:
+Extracted text or error message.
+
+### extract_tables
+Extract HTML tables from a webpage and optionally save as CSV.
+
+Args:
+- `url`: The URL to scrape.
+- `output_path`: Optional path to save tables as CSV (multiple files).
+
+Returns:
+Summary of extracted tables.
+
 ## Dependencies
 - requests (already installed)
 - beautifulsoup4 (added to requirements.txt)
+- selenium (install via `pip install selenium webdriver-manager`)
+- pandas (for table extraction)

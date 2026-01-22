@@ -57,6 +57,7 @@ allowed-tools:
   - generate_api_docs
   - assess_code_quality
   - visualize_complexity
+  - count_lines
 ---
 
 # Coder Skill

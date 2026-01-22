@@ -178,5 +178,55 @@ def normalize_column(
         return f"Error: {str(e)}"
 
 
+@mcp.tool()
+def encode_categorical(
+    file_path: str,
+    column: str,
+    output_path: Optional[str] = None,
+    method: str = "onehot",
+    drop_first: bool = False,
+) -> str:
+    """
+    Encode a categorical column using one‑hot encoding or label encoding.
+
+    Args:
+        file_path: Path to the input CSV file.
+        column: Name of the categorical column to encode.
+        output_path: Path to save the encoded CSV (optional).
+        method: 'onehot' or 'label'. Default 'onehot'.
+        drop_first: Whether to drop the first category in one‑hot encoding (avoid dummy trap).
+
+    Returns:
+        Success message.
+    """
+    try:
+        path = Path(file_path)
+        if not path.exists():
+            return f"Error: File '{file_path}' not found."
+        df = pd.read_csv(path)
+        if column not in df.columns:
+            return f"Error: Column '{column}' not found."
+
+        if method == "label":
+            from sklearn.preprocessing import LabelEncoder
+
+            le = LabelEncoder()
+            df[column + "_encoded"] = le.fit_transform(df[column])
+            out_path = _ensure_output_path(path, output_path, suffix="_label_encoded")
+            df.to_csv(out_path, index=False)
+            return f"Label encoding applied to column '{column}'. Saved to {out_path}"
+        elif method == "onehot":
+            dummies = pd.get_dummies(df[column], prefix=column, drop_first=drop_first)
+            df = pd.concat([df, dummies], axis=1)
+            # Optionally drop original column? Could add parameter, but for simplicity keep.
+            out_path = _ensure_output_path(path, output_path, suffix="_onehot_encoded")
+            df.to_csv(out_path, index=False)
+            return f"One‑hot encoding applied to column '{column}'. Saved to {out_path}"
+        else:
+            return f"Error: Unknown method '{method}'. Use 'onehot' or 'label'."
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+
 if __name__ == "__main__":
     mcp.run()

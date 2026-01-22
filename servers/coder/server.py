@@ -4040,5 +4040,41 @@ def visualize_complexity(file_path: str, output_file: str = "") -> str:
     return f"Complexity visualization saved to: {out_path}"
 
 
+@mcp.tool()
+def count_lines(file_path: str) -> str:
+    """
+    Count lines of code, comments, and blanks in a source file.
+
+    Args:
+        file_path: Absolute path to the source file.
+
+    Returns:
+        Markdown summary of line counts.
+    """
+    try:
+        p = Path(file_path).expanduser().resolve()
+        if not p.exists():
+            return f"Error: File not found: {file_path}"
+        content = p.read_text(encoding="utf-8", errors="replace")
+        lines = content.splitlines()
+        total = len(lines)
+        blank = sum(1 for line in lines if line.strip() == "")
+        # Simple heuristic for comments (Python, JavaScript, Java, C++ style)
+        comment = 0
+        for line in lines:
+            stripped = line.strip()
+            if (
+                stripped.startswith("#")
+                or stripped.startswith("//")
+                or stripped.startswith("/*")
+                or stripped.startswith("*")
+            ):
+                comment += 1
+        code = total - blank - comment
+        return f"Line counts for {p.name}:\n- Total: {total}\n- Code: {code}\n- Comments: {comment}\n- Blank: {blank}"
+    except Exception as e:
+        return f"Error counting lines: {str(e)}"
+
+
 if __name__ == "__main__":
     mcp.run()

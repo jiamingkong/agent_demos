@@ -6,6 +6,7 @@ allowed-tools:
   - fill_missing
   - remove_duplicates
   - normalize_column
+  - encode_categorical
 ---
 
 # Data Cleaning Skill
@@ -15,6 +16,7 @@ This skill provides tools for cleaning tabular data (CSV files). It uses pandas 
 ## Dependencies
 
 - pandas (already installed via project requirements)
+- scikit-learn (optional, for label encoding)
 
 ## Tools
 
@@ -55,5 +57,16 @@ Normalize a numeric column using min‑max scaling or standardization.
 - `column`: Name of the column to normalize.
 - `output_path`: Path to save the normalized CSV (optional).
 - `method`: 'minmax' (scale to [0,1]) or 'standard' (z‑score). Default 'minmax'.
+
+Returns success message.
+
+### encode_categorical
+Encode a categorical column using one‑hot encoding or label encoding.
+
+- `file_path`: Path to the input CSV file.
+- `column`: Name of the categorical column to encode.
+- `output_path`: Path to save the encoded CSV (optional).
+- `method`: 'onehot' or 'label'. Default 'onehot'.
+- `drop_first`: Whether to drop the first category in one‑hot encoding (avoid dummy trap).
 
 Returns success message.

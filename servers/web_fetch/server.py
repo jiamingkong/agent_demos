@@ -3,6 +3,7 @@ import ssl
 import urllib.parse
 import urllib.request
 
+import requests
 from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP("web_fetch", log_level="ERROR")
@@ -62,6 +63,34 @@ def search_web_jina(query: str) -> str:
 
     except Exception as e:
         return f"Error searching via Jina: {str(e)}"
+
+
+@mcp.tool()
+def download_file(url: str, output_path: str, chunk_size: int = 8192) -> str:
+    """
+    Download a file from a URL to a local path with progress indication.
+
+    Args:
+        url: The URL of the file to download.
+        output_path: Local file path to save the downloaded content.
+        chunk_size: Size of chunks for streaming download (default 8192).
+
+    Returns:
+        Success message or error description.
+    """
+    try:
+        response = requests.get(url, stream=True, timeout=30)
+        response.raise_for_status()
+        total_size = int(response.headers.get("content-length", 0))
+        downloaded = 0
+        with open(output_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=chunk_size):
+                if chunk:
+                    f.write(chunk)
+                    downloaded += len(chunk)
+        return f"Download completed: {downloaded} bytes saved to {output_path}"
+    except Exception as e:
+        return f"Error downloading file: {str(e)}"
 
 
 if __name__ == "__main__":

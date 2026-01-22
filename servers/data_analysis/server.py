@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+import numpy as np
 import pandas as pd
 from mcp.server.fastmcp import FastMCP
 
@@ -319,6 +320,37 @@ def filter_rows(
             return f"Filtered data saved to {out_path}"
         else:
             return f"Filtered data ({len(filtered)} rows):\n{filtered.head(20).to_string(index=False)}"
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+
+@mcp.tool()
+def correlation_matrix(file_path: str, output_path: Optional[str] = None) -> str:
+    """
+    Compute Pearson correlation matrix for numeric columns in a CSV file.
+
+    Args:
+        file_path: Absolute path to the CSV file.
+        output_path: Optional path to save the correlation matrix as CSV.
+
+    Returns:
+        Correlation matrix as text or saved file message.
+    """
+    try:
+        path = Path(file_path)
+        if not path.exists():
+            return f"Error: File '{file_path}' not found."
+        df = pd.read_csv(path)
+        numeric_df = df.select_dtypes(include=[np.number])
+        if numeric_df.empty:
+            return "Error: No numeric columns found in the dataset."
+        corr = numeric_df.corr()
+        if output_path:
+            out_path = Path(output_path)
+            corr.to_csv(out_path)
+            return f"Correlation matrix saved to {out_path}"
+        else:
+            return f"Correlation matrix:\n{corr.to_string()}"
     except Exception as e:
         return f"Error: {str(e)}"
 

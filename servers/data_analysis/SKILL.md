@@ -1,6 +1,6 @@
 ---
 name: data_analysis
-description: Data analysis capabilities using pandas (aggregation, grouping, pivoting, merging, sorting, filtering).
+description: Data analysis capabilities using pandas (aggregation, grouping, pivoting, merging, sorting, filtering, correlation).
 allowed-tools:
   - aggregate
   - group_by
@@ -8,6 +8,7 @@ allowed-tools:
   - merge_dataframes
   - sort_values
   - filter_rows
+  - correlation_matrix
 ---
 
 # Data Analysis Skill
@@ -66,6 +67,15 @@ Filter rows based on conditions.
 - `condition`: String expression using column names and operators (e.g., "col1 > 10 and col2 == 'value'"). Uses pandas query syntax.
 - `output_path`: Optional path to save the filtered data as CSV.
 
+### correlation_matrix
+Compute Pearson correlation matrix for numeric columns in a CSV file.
+
+- `file_path`: Absolute path to the CSV file.
+- `output_path`: Optional path to save the correlation matrix as CSV.
+
+Returns correlation matrix as text or saved file message.
+
 ## Dependencies
 
 - pandas (already installed via project requirements)
+- numpy (already installed)
