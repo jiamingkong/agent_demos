@@ -1371,6 +1371,107 @@ def search_and_replace(
 
 
 @mcp.tool()
+@mcp.tool()
+def batch_format(
+    directory: str,
+    file_pattern: str = "*.py",
+    parallel: bool = True,
+    workers: Optional[int] = None,
+) -> str:
+    """
+    Format all Python files in a directory using Black.
+
+    Args:
+        directory: Path to the directory containing Python files.
+        file_pattern: File pattern to match (default "*.py").
+        parallel: If True, format files in parallel using multiple workers.
+        workers: Number of worker threads (default: number of CPU cores).
+                 Ignored if parallel is False.
+
+    Returns:
+        Summary of formatted files.
+    """
+    try:
+        import fnmatch
+        import os
+        import subprocess
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from pathlib import Path
+        from typing import Optional
+
+        p = Path(directory).expanduser().resolve()
+        if not p.exists():
+            return f"Error: Directory not found: {directory}"
+        if not p.is_dir():
+            return f"Error: Path is not a directory: {directory}"
+
+        # Collect matching files
+        files = []
+        for file in p.rglob(file_pattern):
+            if file.is_file():
+                files.append(str(file))
+
+        if not files:
+            return f"No files matching pattern '{file_pattern}' found."
+
+        formatted_count = 0
+        errors = []
+
+        def format_file(file: str) -> tuple[str, bool, str]:
+            """Returns (file, success, error_message)"""
+            try:
+                result = subprocess.run(
+                    ["black", file],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                if result.returncode == 0:
+                    return (file, True, "")
+                else:
+                    return (file, False, result.stderr)
+            except subprocess.TimeoutExpired:
+                return (file, False, "Black formatting timed out.")
+            except Exception as e:
+                return (file, False, str(e))
+
+        if not parallel or len(files) == 1:
+            # Sequential processing
+            for file_path in files:
+                _, success, err_msg = format_file(file_path)
+                if success:
+                    formatted_count += 1
+                else:
+                    errors.append(f"{file_path}: {err_msg}")
+        else:
+            # Parallel processing
+            n_workers = workers if workers is not None else os.cpu_count() or 4
+            with ThreadPoolExecutor(max_workers=n_workers) as executor:
+                future_to_file = {executor.submit(format_file, f): f for f in files}
+                for future in as_completed(future_to_file):
+                    file_path, success, err_msg = future.result()
+                    if success:
+                        formatted_count += 1
+                    else:
+                        errors.append(f"{file_path}: {err_msg}")
+
+        summary_lines = [f"Formatted {formatted_count} out of {len(files)} files."]
+        if parallel:
+            summary_lines.append(
+                f"Parallel execution with {n_workers if 'n_workers' in locals() else 'default'} workers."
+            )
+        if errors:
+            summary_lines.append("\nErrors:")
+            for err in errors[:5]:  # limit error output
+                summary_lines.append(f"- {err}")
+            if len(errors) > 5:
+                summary_lines.append(f"... and {len(errors) - 5} more errors.")
+        return "\n".join(summary_lines)
+    except Exception as e:
+        return f"Error in batch_format: {str(e)}"
+
+
+@mcp.tool()
 def git_status(repo_path: str = ".") -> str:
     """
     Show git status of a repository.
@@ -3361,7 +3462,11 @@ def list_functions(file_path: str) -> str:
 
 @mcp.tool()
 def detect_duplicate_code(
-    folder_path: str, file_pattern: str = "*.py", min_lines: int = 5
+    folder_path: str,
+    file_pattern: str = "*.py",
+    min_lines: int = 5,
+    parallel: bool = True,
+    workers: Optional[int] = None,
 ) -> str:
     """
     Detect duplicate code blocks within Python files in a directory.
@@ -3370,13 +3475,19 @@ def detect_duplicate_code(
         folder_path: Directory to scan.
         file_pattern: File pattern to match (default "*.py").
         min_lines: Minimum number of lines in a block to consider (default 5).
+        parallel: If True, process files in parallel using multiple workers.
+        workers: Number of worker threads (default: number of CPU cores).
+                 Ignored if parallel is False.
 
     Returns:
         Markdown report of duplicate blocks.
     """
     import hashlib
+    import os
     from collections import defaultdict
+    from concurrent.futures import ThreadPoolExecutor, as_completed
     from pathlib import Path
+    from typing import Optional
 
     p = Path(folder_path).expanduser().resolve()
     if not p.exists() or not p.is_dir():
@@ -3390,19 +3501,37 @@ def detect_duplicate_code(
     # Map hash -> list of (file, line_start)
     hash_map = defaultdict(list)
 
-    for file in files:
+    def process_file(file: Path):
+        local_map = []
         try:
             content = file.read_text(encoding="utf-8", errors="replace")
             lines = content.splitlines()
-            # Slide a window of min_lines lines
             for i in range(len(lines) - min_lines + 1):
                 block = "\n".join(lines[i : i + min_lines])
-                # Normalize whitespace? Keep as is for now.
                 block_hash = hashlib.sha256(block.encode()).hexdigest()
-                hash_map[block_hash].append((file, i + 1))
+                local_map.append((block_hash, file, i + 1))
         except Exception as e:
             # Skip files with errors
-            continue
+            pass
+        return local_map
+
+    if not parallel or len(files) == 1:
+        # Sequential processing
+        for file in files:
+            local_map = process_file(file)
+            for block_hash, file, line_start in local_map:
+                hash_map[block_hash].append((file, line_start))
+    else:
+        # Parallel processing
+        n_workers = workers if workers is not None else os.cpu_count() or 4
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            future_to_file = {
+                executor.submit(process_file, file): file for file in files
+            }
+            for future in as_completed(future_to_file):
+                local_map = future.result()
+                for block_hash, file, line_start in local_map:
+                    hash_map[block_hash].append((file, line_start))
 
     # Filter duplicates (hash with more than one occurrence)
     duplicates = {h: locs for h, locs in hash_map.items() if len(locs) > 1}
@@ -3416,6 +3545,10 @@ def detect_duplicate_code(
         f"Min lines: {min_lines}",
         "",
     ]
+    if parallel:
+        report.append(
+            f"Parallel execution with {n_workers if 'n_workers' in locals() else 'default'} workers."
+        )
     for i, (h, locs) in enumerate(duplicates.items(), 1):
         report.append(f"## Duplicate block {i}")
         report.append(f"Hash: {h[:16]}...")
