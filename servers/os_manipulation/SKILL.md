@@ -1,34 +1,68 @@
 ---
-name: os_manipulation
-description: Operating System file manipulation capabilities (list, bulk create, bulk move, regex move).
-allowed-tools:
-  - list_directory
-  - create_directories
-  - move_files
-  - move_files_by_regex
+name: os-manipulation
+description: "File system operations including directory listing, bulk directory creation, batch file moves, and regex-based file moves. Use when organizing files, creating folder structures, moving files in bulk, or renaming files by pattern."
+allowed-tools: "list_directory, create_directories, move_files, move_files_by_regex"
 ---
 
-# OS Manipulation Skill
+# OS Manipulation
 
-This skill allows the agent to interact with the file system.
+Provides file system operations for listing, creating, and moving files and directories in bulk.
+
+## Workflow
+
+1. **Survey** — call `list_directory` to inspect the current file layout before making changes.
+2. **Prepare structure** — call `create_directories` to set up any needed destination folders.
+3. **Move files** — use `move_files` for explicit file lists or `move_files_by_regex` when a filename pattern selects the right files.
 
 ## Tools
 
 ### list_directory
-List contents of a directory.
-- `path`: Absolute path to the directory.
+
+Lists the contents of a directory.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `path` | string | yes | Absolute path to the directory |
 
 ### create_directories
-Create multiple directories at once.
-- `paths`: List of absolute paths to create.
+
+Creates multiple directories at once (including intermediate parents).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `paths` | list[string] | yes | Absolute paths of directories to create |
+
+**Example:**
+```json
+{
+  "paths": ["/home/user/project/src", "/home/user/project/tests"]
+}
+```
 
 ### move_files
-Move multiple files to a specific destination directory.
-- `sources`: List of source file paths to move.
-- `destination`: Destination directory path.
+
+Moves multiple files to a destination directory.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `sources` | list[string] | yes | Source file paths to move |
+| `destination` | string | yes | Destination directory path |
 
 ### move_files_by_regex
-Move files matching a regex pattern from source directory to destination.
-- `source_dir`: Directory to search files in.
-- `destination`: Destination directory.
-- `pattern`: Python regex pattern to match filenames.
+
+Moves files whose names match a Python regex pattern from a source directory to a destination.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `source_dir` | string | yes | Directory to search for matching files |
+| `destination` | string | yes | Destination directory path |
+| `pattern` | string | yes | Python regex pattern to match filenames |
+
+**Example:**
+```json
+{
+  "source_dir": "/home/user/downloads",
+  "destination": "/home/user/documents/pdfs",
+  "pattern": ".*\\.pdf$"
+}
+```

@@ -1,101 +1,114 @@
 ---
 name: coder
-description: Coding assistant capabilities including file investigation, reading, searching, editing, and command execution.
-allowed-tools:
-  - investigate_and_save_report
-  - read_code_file
-  - search_in_files
-  - edit_code_file
-  - apply_edit_blocks
-  - run_terminal_command
-  - create_file
+description: "Coding assistant with tools for project investigation, incremental file reading, grep-based search, exact-match code editing, multi-block batch edits, file creation, and terminal command execution. Use when exploring codebases, reading source files, searching for patterns, editing code, creating files, or running shell commands."
+allowed-tools: "investigate_and_save_report, read_code_file, search_in_files, edit_code_file, apply_edit_blocks, run_terminal_command, create_file"
 ---
 
-# Coder Skill
+# Coder
 
-This skill provides the agent with capabilities to act as a coding assistant, exploring projects, reading code, and making edits.
+Provides coding assistant capabilities for exploring projects, reading code, making precise edits, and executing commands.
+
+## Workflow
+
+1. **Investigate** — call `investigate_and_save_report` on a folder to generate a structural overview (`.test.Agent.md`).
+2. **Read** — call `read_code_file` to inspect specific file sections by line range.
+3. **Search** — call `search_in_files` to grep for patterns across a directory.
+4. **Edit** — use `apply_edit_blocks` (preferred for multi-part changes) or `edit_code_file` (single replacement) to modify code. Always read the file first to get exact text for SEARCH blocks.
+5. **Create** — call `create_file` to write new files or append to existing ones.
+6. **Execute** — call `run_terminal_command` to run shell commands.
 
 ## Tools
 
 ### investigate_and_save_report
-Investigates a folder structure and writes a markdown summary named ".test.Agent.md" in that folder.
-- `folder_path`: The absolute path of the folder to investigate.
+
+Investigates a folder structure and writes a Markdown summary (`.test.Agent.md`) in that folder.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `folder_path` | string | yes | Absolute path of the folder to investigate |
 
 ### read_code_file
-Read a code file incrementally.
-- `file_path`: Absolute path to the file.
-- `start_line`: Starting line number (1-based, inclusive). Default is 1.
-- `end_line`: Ending line number (1-based, inclusive). Default is -1 (end of file).
+
+Reads a code file incrementally by line range.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `file_path` | string | yes | Absolute path to the file |
+| `start_line` | integer | no | Starting line number, 1-based (default: 1) |
+| `end_line` | integer | no | Ending line number, 1-based (default: -1 for end of file) |
 
 ### search_in_files
-Use grep to search for patterns in files within a directory.
-- `folder_path`: The directory to search in.
-- `pattern`: The text or regex pattern to search for.
+
+Searches for text or regex patterns in files within a directory using grep.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `folder_path` | string | yes | Directory to search in |
+| `pattern` | string | yes | Text or regex pattern to search for |
 
 ### edit_code_file
-Edit a code file by replacing an exact text block.
-- `file_path`: Absolute path to the file.
-- `old_string`: The exact string to find and replace.
-- `new_string`: The string to replace it with.
+
+Replaces an exact text block in a file. Use `apply_edit_blocks` instead for multiple changes.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `file_path` | string | yes | Absolute path to the file |
+| `old_string` | string | yes | Exact string to find |
+| `new_string` | string | yes | Replacement string |
 
 ### apply_edit_blocks
-Apply multiple search/replace edits to a file in a single pass. This is PREFERRED over `edit_code_file` for complex changes.
-- `file_path`: Absolute path to the file.
-- `edits`: A string containing one or more edit blocks using the SEARCH/REPLACE format.
+
+Applies multiple search/replace edits to a file in a single pass. **Preferred over `edit_code_file`** for complex or multi-part changes.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `file_path` | string | yes | Absolute path to the file |
+| `edits` | string | yes | One or more edit blocks in SEARCH/REPLACE format |
+
+**Edit block format:**
+```
+<<<<<<< SEARCH
+exact text to find (use sed to extract exact lines)
+=======
+replacement text
+>>>>>>> REPLACE
+```
+
+**Rules:**
+- SEARCH blocks must match the file content exactly (whitespace-sensitive). Use `sed -n '10,15p' <file>` to extract exact text.
+- Include 3–5 lines of surrounding context for unique matching.
+- Multiple SEARCH/REPLACE blocks can appear in a single `edits` string.
+
+**Example — change a print statement on line 42:**
+
+```bash
+# Step 1: Extract exact text
+sed -n '40,45p' main.py
+```
+
+```json
+{
+  "file_path": "/abs/main.py",
+  "edits": "<<<<<<< SEARCH\n    if x > 0:\n        print(\"Positive\")\n        return True\n=======\n    if x > 0:\n        print(\"Found positive value\")\n        return True\n>>>>>>> REPLACE"
+}
+```
 
 ### create_file
-Create a new file with optional content, overwrite existing file, or append.
-- `file_path`: Absolute path to the file.
-- `content`: Optional text content to write.
-- `overwrite`: If True (default), overwrite existing file.
-- `append`: If True, append content to existing file.
+
+Creates a new file with optional content, or overwrites/appends to an existing file.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `file_path` | string | yes | Absolute path to the file |
+| `content` | string | no | Text content to write |
+| `overwrite` | boolean | no | Overwrite existing file (default: true) |
+| `append` | boolean | no | Append content to existing file |
 
 ### run_terminal_command
-Run terminal commands.
-- `command`: The full shell command to execute.
 
-## Usage Strategy: Reliable Code Editing
+Executes a shell command and returns the output.
 
-To edit files efficiently and correctly using `apply_edit_blocks`, follow this distinct workflow. This method prevents "SEARCH block not found" errors by ensuring you have the exact text.
-
-### Standard Workflow
-
-1. **Locate**: Read the file (`read_code_file`) to find the approximate location of the code you want to change.
-2. **Extract Exact Context**:
-   - Once you identify the lines (e.g., lines 10-15), use `sed` to extract exactly those lines.
-   - Command: `sed -n '10,15p' <filename>`
-   - This output provides the **perfect** text for your `SEARCH` block, guaranteeing a match.
-3. **Apply Edit**:
-   - Copy the output from step 2 into the `<<<<<<< SEARCH` block.
-   - Write your new code in the `=======` ... `>>>>>>> REPLACE` block.
-   - Call `apply_edit_blocks`.
-
-### Rules for `apply_edit_blocks`
-
-1. **SEARCH Blocks Must Be Exact**: The tool performs a string find. Any difference in whitespace or indentation will cause it to fail. Using `sed` or `cat` to get the raw text is safer than remembering it. Note: Avoid using `cat -a` on Windows or macOS, as the `-a` flag is not available. Use `sed` or plain `cat` instead.
-2. **Use Sufficient Context**: Include 3-5 lines of context in your `SEARCH` block to ensure it is unique within the file.
-3. **Multiple Edits**: You can pass multiple `SEARCH`/`REPLACE` blocks in one tool call to perform several edits at once.
-
-### Example
-
-**Goal**: Change a print statement on line 42.
-
-1. **Check Content**:
-   ```bash
-   sed -n '40,45p' main.py
-   ```
-   *Output:*
-   ```python
-       if x > 0:
-           print("Positive")
-           return True
-   ```
-
-2. **Call Tool**:
-   ```json
-   {
-     "file_path": "/abs/main.py",
-     "edits": "<<<<<<< SEARCH\n    if x > 0:\n        print(\"Positive\")\n        return True\n=======\n    if x > 0:\n        print(\"Found positive value\")\n        return True\n>>>>>>> REPLACE"
-   }
-   ```
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `command` | string | yes | Full shell command to execute |
 
